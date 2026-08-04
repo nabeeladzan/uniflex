@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "composite": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["bun-types"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "paths": {
+      "@uniflex/sdk/react": ["./packages/sdk/src/react.tsx"],
+      "@uniflex/sdk": ["./packages/sdk/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "packages/**/*", "test/**/*"]
+}

@@ -1,0 +1,14 @@
+node_modules/
+data/
+uniflex
+uniflex.exe
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+dist/
+packages/*/dist/
+*.bun-build
+.*.bun-build
+*.tsbuildinfo
+.DS_Store

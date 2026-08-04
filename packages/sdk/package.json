@@ -1,0 +1,47 @@
+{
+  "name": "@uniflex/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript / JavaScript SDK & React Hooks for Uniflex BaaS",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./react": {
+      "types": "./dist/types/react.d.ts",
+      "import": "./dist/esm/react.js",
+      "require": "./dist/cjs/react.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun ../../scripts/build-sdk.ts",
+    "test": "bun test"
+  },
+  "keywords": [
+    "uniflex",
+    "baas",
+    "sdk",
+    "react",
+    "hooks",
+    "realtime",
+    "auth",
+    "storage"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}
