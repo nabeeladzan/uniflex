@@ -1,5 +1,6 @@
 let endpoint = 'http://localhost:8080';
 let appId: string | undefined = undefined;
+let adminKey: string | undefined = process.env.UNIFLEX_ADMIN_KEY;
 
 for (let i = 0; i < process.argv.length; i++) {
   const arg = process.argv[i];
@@ -11,7 +12,11 @@ for (let i = 0; i < process.argv.length; i++) {
     appId = process.argv[i + 1];
   } else if (arg.startsWith('--appId=')) {
     appId = arg.slice('--appId='.length);
+  } else if (arg === '--adminKey' && process.argv[i + 1]) {
+    adminKey = process.argv[i + 1];
+  } else if (arg.startsWith('--adminKey=')) {
+    adminKey = arg.slice('--adminKey='.length);
   }
 }
 
-export const args = { endpoint, appId };
+export const args = { endpoint, appId, adminKey };

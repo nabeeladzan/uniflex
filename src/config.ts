@@ -28,21 +28,25 @@ export async function loadConfig(path = 'uniflex.config.json'): Promise<UniflexC
 
   const config: UniflexConfig = {
     server: {
-      port: Number(serverObj.port ?? 8080),
-      host: String(serverObj.host ?? '0.0.0.0'),
-      secret: String(serverObj.secret ?? ''),
-      adminKey: String(serverObj.adminKey ?? ''),
+      port: Number(process.env.PORT ?? serverObj.port ?? 8080),
+      host: String(process.env.HOST ?? serverObj.host ?? '0.0.0.0'),
+      secret: String(process.env.UNIFLEX_SECRET ?? serverObj.secret ?? ''),
+      adminKey: String(process.env.UNIFLEX_ADMIN_KEY ?? serverObj.adminKey ?? ''),
     },
     storage: {
-      dir: String(storageObj.dir ?? './data/storage'),
+      dir: String(process.env.UNIFLEX_STORAGE_DIR ?? storageObj.dir ?? './data/storage'),
     },
     database: {
-      path: String(databaseObj.path ?? './data/uniflex.db'),
+      path: String(process.env.UNIFLEX_DB_PATH ?? databaseObj.path ?? './data/uniflex.db'),
     },
   };
 
   if (!config.server.secret) {
-    throw new Error('server.secret is required in uniflex.config.json');
+    throw new Error('server.secret is required in uniflex.config.json or UNIFLEX_SECRET env var');
+  }
+
+  if (!config.server.adminKey) {
+    throw new Error('server.adminKey is required in uniflex.config.json or UNIFLEX_ADMIN_KEY env var');
   }
 
   return config;

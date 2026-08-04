@@ -145,7 +145,29 @@ curl -F "file=@photo.png" http://localhost:8080/v1/storage/upload \
 
 ## Step 6 — Subscribe to Real-Time Updates
 
-Subscribe to live data mutations across your application using raw WebSockets:
+### Using `uniflex-sdk/react`
+
+In a React frontend, `useCollection` automatically fetches initial data and syncs UI state in real-time over WebSockets:
+
+```tsx
+import { useCollection } from 'uniflex-sdk/react';
+
+export function ProductList() {
+  const { data: products, loading } = useCollection<{ title: string; price: number }>('products');
+
+  if (loading) return <div>Loading products...</div>;
+
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p.id}>{p.title} - ${p.price}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Using Raw WebSockets
 
 Connect to `ws://localhost:8080/v1/realtime?appId=my-app` and send a subscription frame:
 
@@ -180,15 +202,17 @@ When any client updates a product (e.g. via `PUT /v1/data/products/<id>`), all s
 
 ## Step 7 — Launch the TUI Admin Dashboard
 
-Uniflex includes an interactive terminal admin dashboard packaged into the executable:
+Uniflex includes an interactive terminal admin control plane packaged into the executable. Pass the server endpoint and admin key when connecting to a remote server:
 
 ```bash
-bun run tui
-# or from compiled binary:
-./uniflex tui
+UNIFLEX_ADMIN_KEY='your-admin-key' ./uniflex tui --endpoint http://192.168.1.36:2024
 ```
 
-- Press **`Ctrl+P`** to open the VS Code-style Command Palette to search commands or switch application tenant.
-- Press **`1` – `7`** to jump across tabs (`Apps`, `Data`, `Users`, `Storage`, `Rules`, `Webhooks`, `Realtime`).
-- Press **`n` / `p`** to navigate pages on large collections.
-- Press **`q`** to exit.
+It supports the complete administrator workflow without leaving the terminal:
+
+- Create and switch tenants, browse any collection, search JSON documents, and create, edit, or safely delete records.
+- Create users, change roles, ban/unban accounts, and reset passwords.
+- Upload from or download to the computer running the TUI; delete stored files with an explicit confirmation.
+- Edit tenant rules, register/delete webhooks, and inspect a reconnecting realtime feed.
+
+Press **`Ctrl+P`** to search every action. Direct panel shortcuts and safe form controls are listed in the [API reference](api.md#tui-keybindings--command-palette). Press **`q`** to exit.

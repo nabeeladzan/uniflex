@@ -1,95 +1,129 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useUniflexClient } from 'uniflex-sdk/react';
 import type { FileMeta } from 'uniflex-sdk';
-import type { PanelProps } from './DataPanel';
+import { useUniflexClient } from 'uniflex-sdk/react';
+import { formatBytes, formatDate, truncate } from './format';
 
-const PAGE_SIZE = 25;
+interface StoragePanelProps {
+  appId: string;
+  refresh: number;
+  inputActive: boolean;
+  onAction: (action: string) => void;
+  onSelectionChange: (file: FileMeta | undefined) => void;
+}
 
-export function StoragePanel({ appId, refresh }: PanelProps) {
+const PAGE_SIZE = 20;
+
+export function StoragePanel({ appId, refresh, inputActive, onAction, onSelectionChange }: StoragePanelProps) {
   const client = useUniflexClient();
   const [files, setFiles] = useState<FileMeta[]>([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPage(1);
-  }, [appId]);
+    setPage(0);
+    setSelectedIndex(0);
+    onSelectionChange(undefined);
+  }, [appId, onSelectionChange]);
 
   useEffect(() => {
     let cancelled = false;
-    const offset = (page - 1) * PAGE_SIZE;
+    setLoading(true);
+    setError(null);
     client.storage
-      .listFiles({ limit: PAGE_SIZE, offset })
-      .then(res => {
+      .listFiles({ limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+      .then(result => {
+        if (cancelled) return;
+        setFiles(result.files);
+        setHasNextPage(result.files.length === PAGE_SIZE);
+        setSelectedIndex(0);
+      })
+      .catch(reason => {
         if (!cancelled) {
-          setFiles(res.files);
-          setError(null);
-          setLoading(false);
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setFiles([]);
+          setHasNextPage(false);
         }
       })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [client, appId, refresh, page]);
+  }, [appId, client, page, refresh]);
 
-  useInput((input) => {
-    if (input === 'n') {
-      if (files.length === PAGE_SIZE) {
-        setPage(p => p + 1);
+  useEffect(() => {
+    onSelectionChange(files[selectedIndex]);
+  }, [files, onSelectionChange, selectedIndex]);
+
+  useInput(
+    (input, key) => {
+      if (key.downArrow) {
+        setSelectedIndex(current => Math.min(current + 1, Math.max(0, files.length - 1)));
+      } else if (key.upArrow) {
+        setSelectedIndex(current => Math.max(0, current - 1));
+      } else if (input === 'n' && hasNextPage) {
+        setPage(current => current + 1);
+      } else if (input === 'p' && page > 0) {
+        setPage(current => current - 1);
+      } else if (input === 'a') {
+        onAction('storage.upload');
+      } else if (input === 'o') {
+        onAction('storage.download');
+      } else if (input === 'd') {
+        onAction('storage.delete');
       }
-    } else if (input === 'p') {
-      setPage(p => Math.max(1, p - 1));
-    }
-  });
+    },
+    { isActive: inputActive }
+  );
 
-  if (loading && files.length === 0) {
-    return <Text color="yellow">Loading storage files for tenant "{appId}"...</Text>;
-  }
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    return `${(bytes / 1024).toFixed(1)} KiB`;
-  };
+  const selected = files[selectedIndex];
 
   return (
     <Box flexDirection="column" width="100%">
-      {error && <Text color="red">Error: {error}</Text>}
-      <Box width="100%" justifyContent="space-between">
-        <Text bold color="cyan">
-          STORAGE FILES (Page {page} · {files.length} items on page)
-        </Text>
-        <Text dimColor>[n] Next Page | [p] Prev Page</Text>
+      <Box justifyContent="space-between" width="100%">
+        <Text bold color="cyan">STORAGE / {appId}</Text>
+        <Text dimColor>page {page + 1} · {files.length} files</Text>
       </Box>
-      {files.length === 0 ? (
-        <Text dimColor>No files stored for tenant "{appId}" on page {page}.</Text>
+      {error && <Text color="red">{error}</Text>}
+      {loading && files.length === 0 ? (
+        <Text color="yellow">Loading files…</Text>
+      ) : files.length === 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text>No files stored for this application.</Text>
+          <Text dimColor>Press a to upload a local file.</Text>
+        </Box>
       ) : (
-        <Box flexDirection="column" width="100%">
-          <Box width="100%">
-            <Box width={20}><Text bold color="yellow">ID</Text></Box>
-            <Box width={24}><Text bold color="yellow">FILENAME</Text></Box>
-            <Box width={18}><Text bold color="yellow">MIME TYPE</Text></Box>
-            <Box width={12}><Text bold color="yellow">SIZE</Text></Box>
-            <Box width={24}><Text bold color="yellow">CREATED AT</Text></Box>
-          </Box>
-          {files.map(f => (
-            <Box key={f.id} width="100%">
-              <Box width={20}><Text>{f.id}</Text></Box>
-              <Box width={24}><Text>{f.filename}</Text></Box>
-              <Box width={18}><Text>{f.mimeType}</Text></Box>
-              <Box width={12}><Text>{formatSize(f.size)}</Text></Box>
-              <Box width={24}><Text>{new Date(f.createdAt).toLocaleString()}</Text></Box>
-            </Box>
-          ))}
+        <Box flexDirection="column" marginTop={1} width="100%">
+          {files.map((file, index) => {
+            const selectedRow = index === selectedIndex;
+            return (
+              <Box flexDirection="column" key={file.id} marginBottom={1}>
+                <Text bold={selectedRow} color={selectedRow ? 'cyan' : undefined}>
+                  {selectedRow ? '> ' : '  '}
+                  {truncate(file.filename, 72)}
+                </Text>
+                <Text dimColor>
+                  {file.id} · {file.mimeType} · {formatBytes(file.size)} · {formatDate(file.createdAt)}
+                </Text>
+              </Box>
+            );
+          })}
         </Box>
       )}
+      {selected && (
+        <Box borderStyle="single" borderColor="gray" flexDirection="column" marginTop={1} paddingX={1} width="100%">
+          <Text bold>Selected file</Text>
+          <Text>{selected.filename} · {formatBytes(selected.size)}</Text>
+          <Text dimColor>{client.storage.getUrl(selected.id)}</Text>
+        </Box>
+      )}
+      <Text dimColor>[↑↓] Select · [a] Upload · [o] Download · [d] Delete · [n/p] Pages</Text>
     </Box>
   );
 }

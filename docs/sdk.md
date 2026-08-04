@@ -1,10 +1,20 @@
-# Uniflex SDK Reference (`@uniflex/sdk`)
+# Uniflex SDK Reference (`uniflex-sdk`)
 
-This document is the reference guide for the official Uniflex TypeScript / JavaScript client library (`@uniflex/sdk`) and React hooks (`@uniflex/sdk/react`).
+This document is the reference guide for the official Uniflex TypeScript / JavaScript client library (`uniflex-sdk`) and React hooks (`uniflex-sdk/react`).
+
+## Installation
+
+```bash
+npm install uniflex-sdk
+# or
+bun add uniflex-sdk
+```
+
+---
 
 ## Overview
 
-The `@uniflex/sdk` provides a strongly-typed client for interacting with the Uniflex BaaS server:
+The `uniflex-sdk` package provides a strongly-typed client for interacting with the Uniflex BaaS server:
 
 - App-scoped data operations (`list`, `get`, `create`, `update`, `delete`, `search`).
 - Paginated & keyset cursor listing methods accepting `{ limit?, offset?, starting_after? }` and returning `nextCursor`.
@@ -19,7 +29,7 @@ The `@uniflex/sdk` provides a strongly-typed client for interacting with the Uni
 ## Client Initialization
 
 ```typescript
-import { createClient } from '@uniflex/sdk';
+import { createClient } from 'uniflex-sdk';
 
 export const uniflex = createClient({
   endpoint: 'http://localhost:8080',
@@ -92,14 +102,14 @@ unsubscribe();
 
 ---
 
-## 4. React Integration (`@uniflex/sdk/react`)
+## 4. React Integration (`uniflex-sdk/react`)
 
 ### Provider Setup
 
 Wrap your application in `<UniflexProvider client={uniflex}>`:
 
 ```tsx
-import { UniflexProvider } from '@uniflex/sdk/react';
+import { UniflexProvider } from 'uniflex-sdk/react';
 import { uniflex } from './uniflex';
 
 export function App() {
@@ -116,7 +126,7 @@ export function App() {
 `useCollection` fetches initial collection data and **automatically syncs UI state** in real time when documents are created, updated, or deleted on the server:
 
 ```tsx
-import { useCollection } from '@uniflex/sdk/react';
+import { useCollection } from 'uniflex-sdk/react';
 
 export function ProductList() {
   const { data: products, loading, error } = useCollection<{ title: string; price: number }>('products');
@@ -139,7 +149,7 @@ export function ProductList() {
 `useRealtime` subscribes to raw WebSocket events on a collection:
 
 ```tsx
-import { useRealtime } from '@uniflex/sdk/react';
+import { useRealtime } from 'uniflex-sdk/react';
 
 export function ActivityFeed() {
   const lastEvent = useRealtime('products');

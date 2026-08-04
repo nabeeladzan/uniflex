@@ -1,96 +1,124 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useUniflexClient } from 'uniflex-sdk/react';
 import type { User } from 'uniflex-sdk';
-import type { PanelProps } from './DataPanel';
+import { useUniflexClient } from 'uniflex-sdk/react';
+import { formatDate, truncate } from './format';
 
-const PAGE_SIZE = 25;
+interface UsersPanelProps {
+  appId: string;
+  refresh: number;
+  inputActive: boolean;
+  onAction: (action: string) => void;
+  onSelectionChange: (user: User | undefined) => void;
+}
 
-export function UsersPanel({ appId, refresh }: PanelProps) {
+const PAGE_SIZE = 20;
+
+export function UsersPanel({ appId, refresh, inputActive, onAction, onSelectionChange }: UsersPanelProps) {
   const client = useUniflexClient();
   const [users, setUsers] = useState<User[]>([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPage(1);
-  }, [appId]);
+    setPage(0);
+    setSelectedIndex(0);
+    onSelectionChange(undefined);
+  }, [appId, onSelectionChange]);
 
   useEffect(() => {
     let cancelled = false;
-    const offset = (page - 1) * PAGE_SIZE;
+    setLoading(true);
+    setError(null);
     client.admin.users
-      .list(appId, { limit: PAGE_SIZE, offset })
-      .then(res => {
+      .list(appId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+      .then(result => {
+        if (cancelled) return;
+        setUsers(result.users);
+        setHasNextPage(result.users.length === PAGE_SIZE);
+        setSelectedIndex(0);
+      })
+      .catch(reason => {
         if (!cancelled) {
-          setUsers(res.users);
-          setError(null);
-          setLoading(false);
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setUsers([]);
+          setHasNextPage(false);
         }
       })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [client, appId, refresh, page]);
+  }, [appId, client, page, refresh]);
 
-  useInput((input) => {
-    if (input === 'n') {
-      if (users.length === PAGE_SIZE) {
-        setPage(p => p + 1);
+  useEffect(() => {
+    onSelectionChange(users[selectedIndex]);
+  }, [onSelectionChange, selectedIndex, users]);
+
+  useInput(
+    (input, key) => {
+      if (key.downArrow) {
+        setSelectedIndex(current => Math.min(current + 1, Math.max(0, users.length - 1)));
+      } else if (key.upArrow) {
+        setSelectedIndex(current => Math.max(0, current - 1));
+      } else if (input === 'n' && hasNextPage) {
+        setPage(current => current + 1);
+      } else if (input === 'p' && page > 0) {
+        setPage(current => current - 1);
+      } else if (input === 'a') {
+        onAction('user.create');
+      } else if (input === 'e') {
+        onAction('user.role');
+      } else if (input === 'b') {
+        onAction('user.ban');
+      } else if (input === 'w') {
+        onAction('user.password');
       }
-    } else if (input === 'p') {
-      setPage(p => Math.max(1, p - 1));
-    }
-  });
-
-  if (loading && users.length === 0) {
-    return <Text color="yellow">Loading users for tenant "{appId}"...</Text>;
-  }
+    },
+    { isActive: inputActive }
+  );
 
   return (
     <Box flexDirection="column" width="100%">
-      {error && <Text color="red">Error: {error}</Text>}
-      <Box width="100%" justifyContent="space-between">
-        <Text bold color="cyan">
-          USERS (Page {page} · {users.length} items on page)
-        </Text>
-        <Text dimColor>[n] Next Page | [p] Prev Page</Text>
+      <Box justifyContent="space-between" width="100%">
+        <Text bold color="cyan">USERS / {appId}</Text>
+        <Text dimColor>page {page + 1} · {users.length} users</Text>
       </Box>
-      {users.length === 0 ? (
-        <Text dimColor>No registered users found for tenant "{appId}" on page {page}.</Text>
+      {error && <Text color="red">{error}</Text>}
+      {loading && users.length === 0 ? (
+        <Text color="yellow">Loading users…</Text>
+      ) : users.length === 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text>No users registered for this application.</Text>
+          <Text dimColor>Press a to create one.</Text>
+        </Box>
       ) : (
-        <Box flexDirection="column" width="100%">
-          <Box width="100%">
-            <Box width={36}><Text bold color="yellow">ID</Text></Box>
-            <Box width={24}><Text bold color="yellow">EMAIL</Text></Box>
-            <Box width={12}><Text bold color="yellow">ROLE</Text></Box>
-            <Box width={10}><Text bold color="yellow">STATUS</Text></Box>
-            <Box width={24}><Text bold color="yellow">CREATED AT</Text></Box>
-          </Box>
-          {users.map(u => (
-            <Box key={u.id} width="100%">
-              <Box width={36}><Text>{u.id}</Text></Box>
-              <Box width={24}><Text>{u.email}</Text></Box>
-              <Box width={12}><Text>{u.role}</Text></Box>
-              <Box width={10}>
-                {u.banned ? (
-                  <Text color="red" bold>Banned</Text>
-                ) : (
-                  <Text color="green">Active</Text>
-                )}
+        <Box flexDirection="column" marginTop={1} width="100%">
+          {users.map((user, index) => {
+            const selected = index === selectedIndex;
+            return (
+              <Box flexDirection="column" key={user.id} marginBottom={1}>
+                <Box width="100%">
+                  <Text bold={selected} color={selected ? 'cyan' : undefined}>
+                    {selected ? '> ' : '  '}
+                    {truncate(user.email, 64)}
+                  </Text>
+                  <Text color={user.banned ? 'red' : 'green'}>{user.banned ? '  BANNED' : '  ACTIVE'}</Text>
+                  <Text dimColor> · {user.role}</Text>
+                </Box>
+                <Text dimColor>{user.id} · created {formatDate(user.createdAt)}</Text>
               </Box>
-              <Box width={24}><Text>{u.createdAt ? new Date(u.createdAt).toLocaleString() : '-'}</Text></Box>
-            </Box>
-          ))}
+            );
+          })}
         </Box>
       )}
+      <Text dimColor>[↑↓] Select · [a] Add · [e] Role · [b] Ban/Unban · [w] Password · [n/p] Pages</Text>
     </Box>
   );
 }

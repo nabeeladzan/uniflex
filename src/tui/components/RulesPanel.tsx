@@ -1,53 +1,82 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { useUniflexClient } from 'uniflex-sdk/react';
-import type { PanelProps } from './DataPanel';
 
-export function RulesPanel({ appId, refresh }: PanelProps) {
+interface RulesPanelProps {
+  appId: string;
+  refresh: number;
+  inputActive: boolean;
+  onAction: (action: string) => void;
+}
+
+type Rules = Record<string, Record<string, string>>;
+
+export function RulesPanel({ appId, refresh, inputActive, onAction }: RulesPanelProps) {
   const client = useUniflexClient();
-  const [rules, setRules] = useState<Record<string, Record<string, string>> | null>(null);
+  const [rules, setRules] = useState<Rules | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     client.admin.rules
       .get()
-      .then(res => {
-        if (!cancelled) {
-          setRules((res.rules as Record<string, Record<string, Record<string, string>>>)[appId] ?? null);
-          setError(null);
-          setLoading(false);
-        }
+      .then(result => {
+        if (!cancelled) setRules(result.rules[appId] ?? null);
       })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
+      .catch(reason => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [client, appId, refresh]);
+  }, [appId, client, refresh]);
 
-  if (loading && rules === null) {
-    return <Text color="yellow">Loading security rules...</Text>;
-  }
+  useInput(
+    input => {
+      if (input === 'e') onAction('rules.edit');
+    },
+    { isActive: inputActive }
+  );
+
+  const collections = Object.entries(rules ?? {});
 
   return (
     <Box flexDirection="column" width="100%">
-      {error && <Text color="red">Error: {error}</Text>}
-      <Text bold color="cyan">
-        SECURITY RULES ({appId})
-      </Text>
-      {!rules || Object.keys(rules).length === 0 ? (
-        <Text dimColor>No security rules configured for tenant "{appId}".</Text>
+      <Box justifyContent="space-between" width="100%">
+        <Text bold color="cyan">SECURITY RULES / {appId}</Text>
+        <Text dimColor>{collections.length} collections</Text>
+      </Box>
+      {error && <Text color="red">{error}</Text>}
+      {loading ? (
+        <Text color="yellow">Loading rules…</Text>
+      ) : collections.length === 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text>No rules configured for this application.</Text>
+          <Text dimColor>Press e to define collection access rules.</Text>
+        </Box>
       ) : (
-        <Box width="100%" flexDirection="column">
-          <Text>{JSON.stringify(rules, null, 2)}</Text>
+        <Box flexDirection="column" marginTop={1} width="100%">
+          {collections.map(([collection, operations]) => (
+            <Box flexDirection="column" key={collection} marginBottom={1}>
+              <Text bold color="cyan">{collection}</Text>
+              {Object.entries(operations).map(([operation, expression]) => (
+                <Text key={operation}>
+                  <Text color="yellow">  {operation.padEnd(6)}</Text>
+                  <Text dimColor>{expression}</Text>
+                </Text>
+              ))}
+            </Box>
+          ))}
         </Box>
       )}
+      <Text dimColor>[e] Edit rules</Text>
     </Box>
   );
 }

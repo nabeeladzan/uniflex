@@ -26,11 +26,12 @@ Commands:
 TUI Options:
   --endpoint <url>      Uniflex server endpoint (default: http://localhost:8080)
   --appId <slug>        Tenant application slug (auto-detects if omitted)
+  --adminKey <key>      Admin secret key for managing protected server endpoints
 
 Examples:
   uniflex               Start server listening on localhost:8080
   uniflex serve         Start server listening on localhost:8080
-  uniflex tui           Launch interactive TUI dashboard (Ctrl+P for Command Palette)
+  uniflex tui --adminKey my-admin-key Launch interactive TUI dashboard
 `);
   process.exit(0);
 }

@@ -48,6 +48,8 @@ bun run build
 ./uniflex tui
 ```
 
+The TUI is a keyboard-driven admin control plane, not a read-only monitor. With an admin key it can create and switch applications; manage JSON documents and collections; create, update, ban, and reset users; upload, download, and delete files; edit rules; manage webhooks; and monitor a reconnecting realtime feed. See the [TUI controls](docs/api.md#tui-keybindings--command-palette).
+
 ## Configuration
 
 Uniflex reads `uniflex.config.json` at startup:

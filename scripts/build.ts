@@ -26,16 +26,30 @@ if (wasmDir) {
   console.log('No standalone .wasm file found; yoga uses inline base64 WASM bundle.');
 }
 
-const isWin = process.platform === 'win32';
-const target = isWin ? 'bun-windows-x64' : 'bun-linux-x64';
-const outfile = isWin ? 'uniflex.exe' : 'uniflex';
+const isLinuxRequested = process.argv.some(a => a === 'linux' || a === '--target=linux');
+const isWinRequested = process.argv.some(a => a === 'windows' || a === '--target=windows');
+
+let target: 'bun-linux-x64' | 'bun-windows-x64';
+let outfile: string;
+
+if (isLinuxRequested) {
+  target = 'bun-linux-x64';
+  outfile = 'uniflex-linux';
+} else if (isWinRequested) {
+  target = 'bun-windows-x64';
+  outfile = 'uniflex.exe';
+} else {
+  const isWin = process.platform === 'win32';
+  target = isWin ? 'bun-windows-x64' : 'bun-linux-x64';
+  outfile = isWin ? 'uniflex.exe' : 'uniflex';
+}
 
 console.log(`Building single-binary for ${target} -> ${outfile}...`);
 
 const buildConfig: Parameters<typeof Bun.build>[0] = {
   entrypoints: ['src/cli.ts'],
   compile: {
-    target: target as any,
+    target,
     outfile,
   },
   minify: true,

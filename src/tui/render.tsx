@@ -30,6 +30,7 @@ export async function runTui(): Promise<void> {
     const client = createClient({
       endpoint: args.endpoint,
       appId: args.appId || 'my-app',
+      adminKey: args.adminKey,
     });
     const inst = render(<App client={client} initialAppId={args.appId} onExit={cleanup} />);
     await inst.waitUntilExit();

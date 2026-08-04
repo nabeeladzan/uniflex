@@ -19,7 +19,7 @@ Uniflex is designed to compile into a single standalone binary executable (`unif
 ```
 
 - **Server Engine Mode** (`./uniflex` or `./uniflex serve`): Starts the high-performance Hono HTTP API and WebSocket real-time engine.
-- **TUI Admin Dashboard Mode** (`./uniflex tui`): Starts an in-terminal, btop-style monitoring dashboard operating in exclusive xterm alternate screen buffer mode (`\x1b[?1049h`). Features VS Code-style Command Palette (`Ctrl+P`) for searching actions and switching application tenants.
+- **TUI Admin Dashboard Mode** (`./uniflex tui`): Starts an in-terminal admin control plane in an exclusive xterm alternate screen buffer (`\x1b[?1049h`). Its searchable command palette, contextual panel shortcuts, forms, and typed destructive confirmations cover tenant, document, user, storage, rules, webhook, and realtime operations against the same HTTP/WebSocket API.
 
 ---
 
@@ -38,7 +38,7 @@ Every database table (`apps`, `users`, `documents`, `rules`, `webhooks`, `files`
 Uniflex utilizes SQLite with WAL (Write-Ahead Logging) and FTS5 full-text indexing.
 
 - **Pagination & Keyset Cursors**: List endpoints (`/v1/data/:collection`, `/v1/admin/apps/:appId/users`, `/v1/storage/files`) execute indexed `LIMIT ? OFFSET ?` queries and keyset cursor queries (`?starting_after=<docId>`), keeping memory usage constant and response times under 1ms even when querying tables with millions of rows.
-- **Viewport Windowing**: The TUI dashboard fetches and renders only visible page windows (25 items/page), keeping UI rendering lightweight and responsive.
+- **Viewport Windowing**: The TUI fetches one 20-record page at a time; document browsing uses the server’s keyset cursor while search, user, and storage lists use bounded offset pages.
 
 ---
 

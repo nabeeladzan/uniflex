@@ -165,12 +165,22 @@ List stored files metadata for an application tenant. Supports optional query pa
 The Uniflex executable (`uniflex` or `uniflex.exe`) supports two execution modes:
 
 - **Server Mode**: `./uniflex` or `./uniflex serve` starts the HTTP and WebSocket BaaS engine.
-- **TUI Dashboard Mode**: `./uniflex tui` opens an interactive, full-terminal dashboard to inspect apps, data collections, users, storage, rules, webhooks, and live WebSocket event streams.
+- **TUI Dashboard Mode**: `./uniflex tui` opens a keyboard-driven, full-terminal administrative control plane. Supply an admin key to use protected operations:
+
+  ```bash
+  UNIFLEX_ADMIN_KEY='…' ./uniflex tui --endpoint http://server.example:2024
+  # Equivalent: ./uniflex tui --adminKey '…'
+  ```
 
 ### TUI Keybindings & Command Palette
 
-- **`Ctrl+P`**: Open VS Code-style Command Palette to search commands or switch application tenant.
-- **`1` – `7`**: Direct tab navigation (`1: Apps`, `2: Data`, `3: Users`, `4: Storage`, `5: Rules`, `6: Webhooks`, `7: Realtime`).
-- **`n` / `p`**: Next page / Previous page on paginated data views.
-- **`r`**: Refresh active panel data.
-- **`q`**: Quit TUI.
+- **`Ctrl+P`**: Search every command, including tenant switching and all management operations.
+- **`1` – `7`**, **`Tab`**, **`←` / `→`**: Navigate `Apps`, `Data`, `Users`, `Storage`, `Rules`, `Webhooks`, and `Realtime`.
+- **`↑` / `↓`**: Select a row in Apps, Data, Users, Storage, and Webhooks. **`n` / `p`** change pages where available.
+- **Apps**: **`a`** create; **`s`** switch; **`Enter`** activates the selected application.
+- **Data**: **`a`** create, **`e`** replace the selected document, **`d`** delete it, **`/`** search, **`x`** clear search, **`c`** change collection.
+- **Users**: **`a`** create, **`e`** change role, **`b`** ban/unban, **`w`** reset password.
+- **Storage**: **`a`** upload from the TUI machine, **`o`** download the selected file, **`d`** delete it.
+- **Rules**: **`e`** edit the active tenant’s rule JSON. **Webhooks**: **`a`** create, **`d`** delete. **Realtime**: **`c`** change its collection filter, **`x`** clear its feed.
+- **Forms**: `Tab`/arrows move between fields; `Enter` advances or submits; typing replaces a prefilled value; `Ctrl+A` clears a field; `Esc` cancels. Destructive operations require typing their displayed confirmation word.
+- **`r`** refreshes server data; **`q`** exits the dashboard.

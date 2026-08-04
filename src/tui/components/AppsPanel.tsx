@@ -1,83 +1,90 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Text } from 'ink';
-import { useUniflexClient } from 'uniflex-sdk/react';
+import { Box, Text, useInput } from 'ink';
 import type { App as AppType } from 'uniflex-sdk';
-import type { PanelProps } from './DataPanel';
+import { formatDate, truncate } from './format';
 
-export function AppsPanel({ appId, refresh, onAppsLoaded }: PanelProps) {
-  const client = useUniflexClient();
-  const [apps, setApps] = useState<AppType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface AppsPanelProps {
+  activeAppId: string;
+  apps: AppType[];
+  error: string | null;
+  loading: boolean;
+  inputActive: boolean;
+  onAction: (action: string) => void;
+  onSelectApp: (appId: string) => void;
+}
+
+export function AppsPanel({
+  activeAppId,
+  apps,
+  error,
+  loading,
+  inputActive,
+  onAction,
+  onSelectApp,
+}: AppsPanelProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    client.admin.apps
-      .list()
-      .then(res => {
-        if (!cancelled) {
-          setApps(res.apps);
-          setError(null);
-          setLoading(false);
-          if (onAppsLoaded) onAppsLoaded(res.apps);
-        }
-      })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [client, refresh, onAppsLoaded]);
+    const activeIndex = apps.findIndex(app => app.id === activeAppId);
+    setSelectedIndex(activeIndex >= 0 ? activeIndex : 0);
+  }, [activeAppId, apps]);
+
+  useInput(
+    (input, key) => {
+      if (key.downArrow) {
+        setSelectedIndex(current => Math.min(current + 1, Math.max(0, apps.length - 1)));
+      } else if (key.upArrow) {
+        setSelectedIndex(current => Math.max(0, current - 1));
+      } else if (key.return && apps[selectedIndex]) {
+        onSelectApp(apps[selectedIndex].id);
+      } else if (input === 'a') {
+        onAction('app.create');
+      } else if (input === 's') {
+        onAction('app.switch');
+      }
+    },
+    { isActive: inputActive }
+  );
 
   if (loading && apps.length === 0) {
-    return <Text color="yellow">Loading applications...</Text>;
+    return <Text color="yellow">Loading applications…</Text>;
   }
 
   return (
     <Box flexDirection="column" width="100%">
-      {error && <Text color="red">Error: {error}</Text>}
-      <Text bold color="cyan">
-        APPLICATIONS ({apps.length})
-      </Text>
+      <Box justifyContent="space-between" width="100%">
+        <Text bold color="cyan">APPLICATIONS</Text>
+        <Text dimColor>{apps.length} registered</Text>
+      </Box>
+      {error && <Text color="red">{error}</Text>}
       {apps.length === 0 ? (
-        <Text dimColor>No applications registered.</Text>
+        <Box flexDirection="column" marginTop={1}>
+          <Text>No applications registered.</Text>
+          <Text dimColor>Press a to create the first tenant.</Text>
+        </Box>
       ) : (
-        <Box flexDirection="column" width="100%">
-          <Box width="100%">
-            <Box width={16}><Text bold color="yellow">ID</Text></Box>
-            <Box width={20}><Text bold color="yellow">NAME</Text></Box>
-            <Box width={38}><Text bold color="yellow">API KEY</Text></Box>
-            <Box width={12}><Text bold color="yellow">STATUS</Text></Box>
-            <Box width={24}><Text bold color="yellow">CREATED AT</Text></Box>
-          </Box>
-          {apps.map(app => {
-            const isActive = app.id === appId;
+        <Box flexDirection="column" marginTop={1} width="100%">
+          {apps.map((app, index) => {
+            const selected = index === selectedIndex;
+            const active = app.id === activeAppId;
             return (
-              <Box key={app.id} width="100%">
-                <Box width={16}>
-                  <Text bold={isActive} color={isActive ? 'cyan' : undefined}>
-                    {app.id}
+              <Box flexDirection="column" key={app.id} marginBottom={1}>
+                <Box width="100%">
+                  <Text color={selected ? 'cyan' : undefined} bold={selected}>
+                    {selected ? '> ' : '  '}
+                    {app.name}
                   </Text>
+                  {active && <Text color="green">  ACTIVE</Text>}
                 </Box>
-                <Box width={20}><Text>{app.name}</Text></Box>
-                <Box width={38}><Text>{app.apiKey}</Text></Box>
-                <Box width={12}>
-                  {isActive ? (
-                    <Text color="green" bold>[ACTIVE]</Text>
-                  ) : (
-                    <Text dimColor>select ('a')</Text>
-                  )}
-                </Box>
-                <Box width={24}><Text>{new Date(app.createdAt).toLocaleString()}</Text></Box>
+                <Text dimColor>
+                  {app.id} · key {truncate(app.apiKey, 36)} · created {formatDate(app.createdAt)}
+                </Text>
               </Box>
             );
           })}
         </Box>
       )}
+      <Text dimColor>[↑↓] Select · [Enter] Activate · [a] Create · [s] Switch</Text>
     </Box>
   );
 }

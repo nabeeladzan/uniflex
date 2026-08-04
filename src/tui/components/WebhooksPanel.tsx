@@ -1,67 +1,108 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Text } from 'ink';
-import { useUniflexClient } from 'uniflex-sdk/react';
+import { Box, Text, useInput } from 'ink';
 import type { WebhookItem } from 'uniflex-sdk';
-import type { PanelProps } from './DataPanel';
+import { useUniflexClient } from 'uniflex-sdk/react';
+import { formatDate, truncate } from './format';
 
-export function WebhooksPanel({ appId, refresh }: PanelProps) {
+interface WebhooksPanelProps {
+  appId: string;
+  refresh: number;
+  inputActive: boolean;
+  onAction: (action: string) => void;
+  onSelectionChange: (webhook: WebhookItem | undefined) => void;
+}
+
+export function WebhooksPanel({ appId, refresh, inputActive, onAction, onSelectionChange }: WebhooksPanelProps) {
   const client = useUniflexClient();
   const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setSelectedIndex(0);
+    onSelectionChange(undefined);
+  }, [appId, onSelectionChange]);
+
+  useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     client.admin.webhooks
       .list()
-      .then(res => {
+      .then(result => {
         if (!cancelled) {
-          setWebhooks(res.webhooks);
-          setError(null);
-          setLoading(false);
+          setWebhooks(result.webhooks);
+          setSelectedIndex(0);
         }
       })
-      .catch(err => {
+      .catch(reason => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setWebhooks([]);
         }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [client, appId, refresh]);
+  }, [appId, client, refresh]);
 
-  if (loading && webhooks.length === 0) {
-    return <Text color="yellow">Loading webhooks for tenant "{appId}"...</Text>;
-  }
+  useEffect(() => {
+    onSelectionChange(webhooks[selectedIndex]);
+  }, [onSelectionChange, selectedIndex, webhooks]);
+
+  useInput(
+    (input, key) => {
+      if (key.downArrow) {
+        setSelectedIndex(current => Math.min(current + 1, Math.max(0, webhooks.length - 1)));
+      } else if (key.upArrow) {
+        setSelectedIndex(current => Math.max(0, current - 1));
+      } else if (input === 'a') {
+        onAction('webhook.create');
+      } else if (input === 'd') {
+        onAction('webhook.delete');
+      }
+    },
+    { isActive: inputActive }
+  );
 
   return (
     <Box flexDirection="column" width="100%">
-      {error && <Text color="red">Error: {error}</Text>}
-      <Text bold color="cyan">
-        WEBHOOKS ({webhooks.length})
-      </Text>
-      {webhooks.length === 0 ? (
-        <Text dimColor>No webhooks configured for tenant "{appId}".</Text>
+      <Box justifyContent="space-between" width="100%">
+        <Text bold color="cyan">WEBHOOKS / {appId}</Text>
+        <Text dimColor>{webhooks.length} configured</Text>
+      </Box>
+      {error && <Text color="red">{error}</Text>}
+      {loading && webhooks.length === 0 ? (
+        <Text color="yellow">Loading webhooks…</Text>
+      ) : webhooks.length === 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text>No webhooks configured for this application.</Text>
+          <Text dimColor>Press a to register one.</Text>
+        </Box>
       ) : (
-        <Box flexDirection="column" width="100%">
-          <Box width="100%">
-            <Box width={20}><Text bold color="yellow">ID</Text></Box>
-            <Box width={30}><Text bold color="yellow">URL</Text></Box>
-            <Box width={24}><Text bold color="yellow">EVENTS</Text></Box>
-            <Box width={24}><Text bold color="yellow">CREATED AT</Text></Box>
-          </Box>
-          {webhooks.map(w => (
-            <Box key={w.id} width="100%">
-              <Box width={20}><Text>{w.id}</Text></Box>
-              <Box width={30}><Text>{w.url}</Text></Box>
-              <Box width={24}><Text>{w.events.join(', ')}</Text></Box>
-              <Box width={24}><Text>{new Date(w.createdAt).toLocaleString()}</Text></Box>
-            </Box>
-          ))}
+        <Box flexDirection="column" marginTop={1} width="100%">
+          {webhooks.map((webhook, index) => {
+            const selected = index === selectedIndex;
+            return (
+              <Box flexDirection="column" key={webhook.id} marginBottom={1}>
+                <Text bold={selected} color={selected ? 'cyan' : undefined}>
+                  {selected ? '> ' : '  '}
+                  {truncate(webhook.url, 88)}
+                </Text>
+                <Text dimColor>
+                  {webhook.id} · {webhook.events.join(', ')} · {formatDate(webhook.createdAt)}
+                </Text>
+              </Box>
+            );
+          })}
         </Box>
       )}
+      <Text dimColor>[↑↓] Select · [a] Add · [d] Delete</Text>
     </Box>
   );
 }
