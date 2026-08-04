@@ -2,7 +2,8 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { $ } from 'bun';
 import path from 'node:path';
 
-const root = process.cwd();
+// Resolve repository root relative to this script's directory (scripts/.. -> root)
+const root = path.resolve(import.meta.dir, '..');
 const sdkDir = path.join(root, 'packages', 'sdk');
 
 // Clear prior dist output
