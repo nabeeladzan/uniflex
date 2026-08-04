@@ -16,8 +16,9 @@
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "paths": {
-      "@uniflex/sdk/react": ["./packages/sdk/src/react.tsx"],
-      "@uniflex/sdk": ["./packages/sdk/src/index.ts"]
+      "uniflex-sdk": ["./packages/sdk/src/index.ts"],
+      "uniflex-sdk/react": ["./packages/sdk/src/react.tsx"],
+      "uniflex-sdk/*": ["./packages/sdk/src/*"]
     }
   },
   "include": ["src/**/*", "packages/**/*", "test/**/*"]

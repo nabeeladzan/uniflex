@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from 'ink';
 import { App } from './App';
-import { createClient } from '@uniflex/sdk';
+import { createClient } from 'uniflex-sdk';
 import { args } from './args';
 
 export async function runTui(): Promise<void> {

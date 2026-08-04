@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useUniflexClient } from '@uniflex/sdk/react';
-import type { FileMeta } from '@uniflex/sdk';
+import { useUniflexClient } from 'uniflex-sdk/react';
+import type { FileMeta } from 'uniflex-sdk';
 import type { PanelProps } from './DataPanel';
 
 const PAGE_SIZE = 25;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { UniflexClient, type App as AppType } from '@uniflex/sdk';
-import { UniflexProvider, useUniflexClient } from '@uniflex/sdk/react';
+import { UniflexClient, type App as AppType } from 'uniflex-sdk';
+import { UniflexProvider, useUniflexClient } from 'uniflex-sdk/react';
 import { AppsPanel } from './components/AppsPanel';
 import { DataPanel } from './components/DataPanel';
 import { UsersPanel } from './components/UsersPanel';

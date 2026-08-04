@@ -1,10 +1,10 @@
 import { describe, test, expect, beforeAll } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import { createApp } from '../src/app';
-import { createClient } from '@uniflex/sdk';
-import { useCollection, useRealtime } from '@uniflex/sdk/react';
+import { createClient } from 'uniflex-sdk';
+import { useCollection, useRealtime } from 'uniflex-sdk/react';
 
-describe('Uniflex React Hooks Suite (@uniflex/sdk/react)', () => {
+describe('Uniflex React Hooks Suite (uniflex-sdk/react)', () => {
   let baseUrl: string;
   let client: ReturnType<typeof createClient>;
 

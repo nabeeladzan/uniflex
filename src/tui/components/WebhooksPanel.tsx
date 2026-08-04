@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useUniflexClient } from '@uniflex/sdk/react';
-import type { WebhookItem } from '@uniflex/sdk';
+import { useUniflexClient } from 'uniflex-sdk/react';
+import type { WebhookItem } from 'uniflex-sdk';
 import type { PanelProps } from './DataPanel';
 
 export function WebhooksPanel({ appId, refresh }: PanelProps) {

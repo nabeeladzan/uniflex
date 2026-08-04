@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { App as AppType } from '@uniflex/sdk';
+import type { App as AppType } from 'uniflex-sdk';
 import type { TabKey } from '../App';
 
 export interface CommandPaletteProps {

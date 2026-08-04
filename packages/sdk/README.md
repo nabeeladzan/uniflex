@@ -1,13 +1,13 @@
-# `@uniflex/sdk`
+# `uniflex-sdk`
 
 Official TypeScript / JavaScript client SDK and React hooks for the **Uniflex BaaS** engine.
 
 ## Installation
 
 ```bash
-npm install @uniflex/sdk
+npm install uniflex-sdk
 # or
-bun add @uniflex/sdk
+bun add uniflex-sdk
 ```
 
 ---
@@ -15,7 +15,7 @@ bun add @uniflex/sdk
 ## Client Setup
 
 ```typescript
-import { createClient } from '@uniflex/sdk';
+import { createClient } from 'uniflex-sdk';
 
 export const uniflex = createClient({
   endpoint: 'http://localhost:8080',
@@ -42,10 +42,10 @@ await uniflex.data.delete('products', doc.id);
 
 ---
 
-## React Hooks (`@uniflex/sdk/react`)
+## React Hooks (`uniflex-sdk/react`)
 
 ```tsx
-import { UniflexProvider, useCollection } from '@uniflex/sdk/react';
+import { UniflexProvider, useCollection } from 'uniflex-sdk/react';
 import { uniflex } from './uniflex';
 
 export function App() {

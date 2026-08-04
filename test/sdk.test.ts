@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import { createApp } from '../src/app';
-import { createClient } from '../packages/sdk/src/index';
+import { createClient } from 'uniflex-sdk';
 
 describe('Uniflex TypeScript SDK Integration Suite', () => {
   let baseUrl: string;
@@ -89,6 +89,7 @@ describe('Uniflex TypeScript SDK Integration Suite', () => {
     // Get single
     const single = await client.data.get('products', doc1.id);
     expect(single.title).toBe('Gaming Keyboard');
+
     // Update
     const updated = await client.data.update('products', doc1.id, {
       title: 'Gaming Keyboard',

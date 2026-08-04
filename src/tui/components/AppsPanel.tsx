@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useUniflexClient } from '@uniflex/sdk/react';
-import type { App as AppType } from '@uniflex/sdk';
+import { useUniflexClient } from 'uniflex-sdk/react';
+import type { App as AppType } from 'uniflex-sdk';
 import type { PanelProps } from './DataPanel';
 
 export function AppsPanel({ appId, refresh, onAppsLoaded }: PanelProps) {

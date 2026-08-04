@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useCollection } from '@uniflex/sdk/react';
+import { useCollection } from 'uniflex-sdk/react';
 
 export interface PanelProps {
   appId: string;

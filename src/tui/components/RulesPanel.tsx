@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
-import { useUniflexClient } from '@uniflex/sdk/react';
+import { useUniflexClient } from 'uniflex-sdk/react';
 import type { PanelProps } from './DataPanel';
 
 export function RulesPanel({ appId, refresh }: PanelProps) {

@@ -1,5 +1,5 @@
 {
-  "name": "@uniflex/sdk",
+  "name": "uniflex-sdk",
   "version": "0.1.0",
   "description": "Official TypeScript / JavaScript SDK & React Hooks for Uniflex BaaS",
   "author": "Muhammad Nabeel Adzan",
