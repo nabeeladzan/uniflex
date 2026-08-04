@@ -2,6 +2,7 @@
   "name": "@uniflex/sdk",
   "version": "0.1.0",
   "description": "Official TypeScript / JavaScript SDK & React Hooks for Uniflex BaaS",
+  "author": "Muhammad Nabeel Adzan",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",
@@ -19,11 +20,17 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "bun ../../scripts/build-sdk.ts",
+    "prepublishOnly": "bun ../../scripts/build-sdk.ts",
     "test": "bun test"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "uniflex",

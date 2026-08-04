@@ -82,4 +82,9 @@ Loaded at startup; secrets must be overridden before any public deployment.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Copyright (c) 2026 **Muhammad Nabeel Adzan**.
+
+This project uses a hybrid dual-licensing model:
+
+- **Server Engine & TUI Admin (`src/`)**: Licensed under the [GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)](LICENSE).
+- **Client SDK (`packages/sdk/`)**: Licensed under the permissive [MIT License](packages/sdk/LICENSE), allowing developers to freely embed `@uniflex/sdk` and `@uniflex/sdk/react` into any commercial or proprietary application.
