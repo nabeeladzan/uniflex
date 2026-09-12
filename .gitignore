@@ -12,3 +12,6 @@ packages/*/dist/
 .*.bun-build
 *.tsbuildinfo
 .DS_Store
+
+uniflex-linux
+
