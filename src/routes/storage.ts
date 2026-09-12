@@ -136,6 +136,20 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
       }
 
       const fitMode = fit === 'contain' ? 'contain' : 'cover';
+      const cacheKey = `${row.id}_w${width || ''}_h${height || ''}_fit${fitMode}_fmt${outFormat}`;
+      const cacheDir = path.join(storageDir, '.cache');
+      const cachePath = path.join(cacheDir, `${cacheKey}.${outFormat}`);
+
+      if (!fs.existsSync(cacheDir)) {
+        try { fs.mkdirSync(cacheDir, { recursive: true }); } catch {}
+      }
+
+      if (fs.existsSync(cachePath)) {
+        return c.newResponse(fs.readFileSync(cachePath), 200, {
+          'Content-Type': `image/${outFormat}`,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        });
+      }
 
       try {
         const fileBuffer = fs.readFileSync(filePath);
@@ -153,9 +167,11 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
         else if (outFormat === 'avif') pipeline = pipeline.avif();
 
         const transformedBuffer = await pipeline.toBuffer();
+        try { fs.writeFileSync(cachePath, transformedBuffer); } catch {}
 
         return c.newResponse(new Uint8Array(transformedBuffer), 200, {
           'Content-Type': `image/${outFormat}`,
+          'Cache-Control': 'public, max-age=31536000, immutable',
         });
       } catch (err) {
         return c.newResponse(fs.readFileSync(filePath), 200, {
@@ -169,6 +185,7 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     return c.newResponse(fileStream, 200, {
       'Content-Type': row.mime_type,
       'Content-Disposition': `inline; filename="${row.filename}"`,
+      'Cache-Control': 'public, max-age=31536000, immutable',
     });
   });
 

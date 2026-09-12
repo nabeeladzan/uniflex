@@ -4,6 +4,7 @@ export interface UniflexConfig {
     host: string;
     secret: string;
     adminKey: string;
+    udpPort?: number;
   };
   storage: {
     dir: string;
@@ -32,6 +33,7 @@ export async function loadConfig(path = 'uniflex.config.json'): Promise<UniflexC
       host: String(process.env.HOST ?? serverObj.host ?? '0.0.0.0'),
       secret: String(process.env.UNIFLEX_SECRET ?? serverObj.secret ?? ''),
       adminKey: String(process.env.UNIFLEX_ADMIN_KEY ?? serverObj.adminKey ?? ''),
+      udpPort: serverObj.udpPort !== undefined ? Number(serverObj.udpPort) : Number(process.env.UNIFLEX_UDP_PORT ?? 40000),
     },
     storage: {
       dir: String(process.env.UNIFLEX_STORAGE_DIR ?? storageObj.dir ?? './data/storage'),

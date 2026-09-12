@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Database } from 'bun:sqlite';
+import { bodyLimit } from 'hono/body-limit';
 import type { UniflexConfig } from '../config';
 import type { EventBus } from '../lib/events';
 import { err } from '../lib/errors';
@@ -11,6 +11,13 @@ const COLLECTION_RE = /^[a-z0-9_-]{1,64}$/;
 
 export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfig, bus: EventBus) {
   app.use('/v1/data/*', appContext(db));
+  app.use(
+    '/v1/data/*',
+    bodyLimit({
+      maxSize: 10 * 1024 * 1024,
+      onError: (c) => err(c, 413, 'Payload too large'),
+    })
+  );
 
   // POST /v1/data/:collection
   app.post('/v1/data/:collection', async (c) => {
@@ -21,7 +28,7 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid collection name');
     }
 
-    const { user, response } = await resolveAuthUser(c, config);
+    const { user, response } = await resolveAuthUser(c, config, db);
     if (response) return response;
 
     let body: Record<string, unknown>;
@@ -99,7 +106,7 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Query parameter q is required');
     }
 
-    const { user, response } = await resolveAuthUser(c, config);
+    const { user, response } = await resolveAuthUser(c, config, db);
     if (response) return response;
 
     const ctx = { user, doc: null, request: null };
@@ -193,7 +200,7 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid collection name');
     }
 
-    const { user, response } = await resolveAuthUser(c, config);
+    const { user, response } = await resolveAuthUser(c, config, db);
     if (response) return response;
 
     const ctx = { user, doc: null, request: null };
@@ -266,7 +273,7 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid collection name');
     }
 
-    const { user, response } = await resolveAuthUser(c, config);
+    const { user, response } = await resolveAuthUser(c, config, db);
     if (response) return response;
 
     const row = db
@@ -307,7 +314,7 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid collection name');
     }
 
-    const { user, response } = await resolveAuthUser(c, config);
+    const { user, response } = await resolveAuthUser(c, config, db);
     if (response) return response;
 
     let body: Record<string, unknown>;
@@ -344,14 +351,15 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
     }
 
     const now = new Date().toISOString();
+    const mergedData = { ...existingDoc, ...body };
     db.prepare(
       'UPDATE documents SET data = ?, updated_at = ? WHERE app_id = ? AND collection = ? AND id = ?'
-    ).run(JSON.stringify(body), now, appId, collection, id);
+    ).run(JSON.stringify(mergedData), now, appId, collection, id);
 
     const docObj = {
       id,
       collection,
-      data: body,
+      data: mergedData,
       _updatedAt: now,
     };
 
@@ -375,7 +383,7 @@ export function registerDataRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid collection name');
     }
 
-    const { user, response } = await resolveAuthUser(c, config);
+    const { user, response } = await resolveAuthUser(c, config, db);
     if (response) return response;
 
     const existing = db

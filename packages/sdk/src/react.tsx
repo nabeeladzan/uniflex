@@ -96,14 +96,28 @@ export function useCollection<T = Record<string, unknown>>(
       pendingEvents.current = [];
 
       let needsRefetch = false;
+      const createsList: DocumentItem<T>[] = [];
       const updatesMap = new Map<string, Record<string, unknown>>();
       const deletesSet = new Set<string>();
 
       for (const evt of batch) {
         if (evt.action === 'create') {
-          needsRefetch = true;
+          const raw = evt.data as unknown as Record<string, unknown>;
+          const newDoc = (raw.data && typeof raw.data === 'object'
+            ? { id: raw.id, ...(raw.data as Record<string, unknown>) }
+            : raw) as unknown as DocumentItem<T>;
+
+          if (newDoc && newDoc.id) {
+            createsList.push(newDoc);
+          } else {
+            needsRefetch = true;
+          }
         } else if (evt.action === 'update') {
-          updatesMap.set(evt.data.id, evt.data.data || {});
+          const raw = evt.data as unknown as Record<string, unknown>;
+          const fields = (raw.data && typeof raw.data === 'object')
+            ? (raw.data as Record<string, unknown>)
+            : raw;
+          updatesMap.set(evt.data.id, fields);
         } else if (evt.action === 'delete') {
           deletesSet.add(evt.data.id);
         }
@@ -112,14 +126,17 @@ export function useCollection<T = Record<string, unknown>>(
       if (needsRefetch) {
         fetchCollection();
       } else {
-        setData((prev) =>
-          prev
+        setData((prev) => {
+          const existingIds = new Set(prev.map((d) => d.id));
+          const toAdd = createsList.filter((d) => !existingIds.has(d.id));
+          const next = prev
             .filter((doc) => !deletesSet.has(doc.id))
             .map((doc) => {
               const updatedFields = updatesMap.get(doc.id);
               return updatedFields ? { ...doc, ...(updatedFields as T) } : doc;
-            })
-        );
+            });
+          return toAdd.length > 0 ? [...next, ...toAdd] : next;
+        });
       }
     };
 
@@ -143,4 +160,81 @@ export function useCollection<T = Record<string, unknown>>(
   }, [client, collectionName, fetchCollection]);
 
   return { data, loading, error, refetch: fetchCollection };
+}
+
+export function useAuth(clientOverride?: UniflexClient) {
+  const contextClient = useContext(UniflexContext);
+  const client = clientOverride || contextClient;
+  const [user, setUser] = useState<{ id: string; email: string; role: string; appId: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMe = useCallback(async () => {
+    if (!client || !client.token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      const me = await client.auth.me();
+      setUser(me.user);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [client]);
+
+  useEffect(() => {
+    if (!client) return;
+    const savedToken = typeof window !== "undefined" ? localStorage.getItem("uniflex_token") : null;
+    if (savedToken) {
+      client.setToken(savedToken);
+    }
+    fetchMe();
+  }, [client, fetchMe]);
+
+  const login = async (email: string, pass: string) => {
+    if (!client) throw new Error("No UniflexClient available");
+    const res = await client.auth.login({ email, password: pass });
+    if (res.token) {
+      client.setToken(res.token);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("uniflex_token", res.token);
+      }
+    }
+    setUser(res.user);
+    return res;
+  };
+
+  const signup = async (email: string, pass: string) => {
+    if (!client) throw new Error("No UniflexClient available");
+    const res = await client.auth.signup({ email, password: pass });
+    if (res.token) {
+      client.setToken(res.token);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("uniflex_token", res.token);
+      }
+    }
+    setUser(res.user);
+    return res;
+  };
+
+  const logout = () => {
+    if (!client) return;
+    client.setToken(undefined);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("uniflex_token");
+    }
+    setUser(null);
+  };
+
+  return {
+    user,
+    loading,
+    isAuthenticated: user !== null,
+    login,
+    signup,
+    logout,
+    refreshUser: fetchMe,
+  };
 }

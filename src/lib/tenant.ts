@@ -10,8 +10,8 @@ declare module 'hono' {
 
 export function appContext(db: Database) {
   return async (c: Context, next: Next) => {
-    const appIdHeader = c.req.header('X-Uniflex-App-ID');
-    const apiKeyHeader = c.req.header('X-Uniflex-API-Key');
+    const appIdHeader = c.req.header('X-Uniflex-App-ID') || c.req.query('appId');
+    const apiKeyHeader = c.req.header('X-Uniflex-API-Key') || c.req.query('apiKey');
 
     let resolvedAppId: string | null = null;
 

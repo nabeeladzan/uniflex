@@ -4,6 +4,7 @@ export interface UniflexClientOptions {
   apiKey?: string;
   token?: string;
   adminKey?: string;
+  mediaEndpoint?: string;
 }
 
 export interface App {
@@ -64,10 +65,11 @@ export interface RealtimeEvent {
   action: 'create' | 'update' | 'delete' | string;
   data: {
     id: string;
-    collection: string;
+    collection?: string;
     data?: Record<string, unknown>;
     _createdAt?: string;
     _updatedAt?: string;
+    [key: string]: unknown;
   };
 }
 

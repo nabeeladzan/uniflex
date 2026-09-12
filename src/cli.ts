@@ -45,13 +45,17 @@ if (subcommand === 'tui') {
     const config = await loadConfig();
     const { app } = createApp(config);
 
+    if (config.server.udpPort) {
+      const { createUdpAudioServer } = await import('./sfu');
+      createUdpAudioServer(config.server.udpPort);
+    }
+
     Bun.serve({
       port: config.server.port,
       hostname: config.server.host,
       fetch: app.fetch,
       websocket,
     });
-
     console.log(`Uniflex server listening on http://${config.server.host}:${config.server.port}`);
   } catch (err) {
     console.error('Failed to start Uniflex server:', err instanceof Error ? err.message : String(err));

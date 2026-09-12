@@ -24,8 +24,11 @@ for (const target of targets) {
     ],
     outdir: path.join(sdkDir, 'dist', target.format === 'esm' ? 'esm' : 'cjs'),
     format: target.format,
-    external: ['react'],
+    external: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom'],
     target: 'browser',
+    define: {
+      'process.env.NODE_ENV': '"production"',
+    },
   });
 
   if (!out.success) {

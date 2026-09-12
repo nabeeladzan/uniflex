@@ -40,8 +40,12 @@ export function createEventBus(db: Database): EventBus {
           try {
             const res = await fetch(row.url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Uniflex-Webhook/0.1.0',
+              },
               body: payload,
+              signal: AbortSignal.timeout(10000),
             });
             if (!res.ok && attempt < delays.length) {
               setTimeout(() => attemptDelivery(attempt + 1), delays[attempt]);

@@ -18,7 +18,7 @@ export function initDb(pathOrDb: string | Database): Database {
 
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
-
+  db.exec('PRAGMA busy_timeout = 5000;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS apps (
       id TEXT PRIMARY KEY,
@@ -48,6 +48,27 @@ export function initDb(pathOrDb: string | Database): Database {
     );
 
     CREATE INDEX IF NOT EXISTS idx_documents_app_collection ON documents (app_id, collection);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+      id UNINDEXED,
+      app_id UNINDEXED,
+      collection UNINDEXED,
+      data
+    );
+
+    CREATE TRIGGER IF NOT EXISTS trg_documents_ai AFTER INSERT ON documents BEGIN
+      INSERT INTO documents_fts (id, app_id, collection, data)
+      VALUES (new.id, new.app_id, new.collection, new.data);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_documents_ad AFTER DELETE ON documents BEGIN
+      DELETE FROM documents_fts WHERE id = old.id AND app_id = old.app_id AND collection = old.collection;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_documents_au AFTER UPDATE ON documents BEGIN
+      UPDATE documents_fts SET data = new.data
+      WHERE id = new.id AND app_id = new.app_id AND collection = new.collection;
+    END;
 
     CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,

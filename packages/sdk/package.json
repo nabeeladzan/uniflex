@@ -1,6 +1,6 @@
 {
   "name": "uniflex-sdk",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "Official TypeScript / JavaScript SDK & React Hooks for Uniflex BaaS",
   "author": "Muhammad Nabeel Adzan",
   "main": "./dist/cjs/index.js",

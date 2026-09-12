@@ -115,7 +115,10 @@ describe('Uniflex TypeScript SDK Integration Suite', () => {
       height: 200,
       format: 'webp',
     });
-    expect(url).toContain('/v1/storage/raw/file_123?w=200&h=200&format=webp');
+    expect(url).toContain('/v1/storage/raw/file_123?');
+    expect(url).toContain('w=200');
+    expect(url).toContain('h=200');
+    expect(url).toContain('format=webp');
   });
 
   test('5. Admin: rules & webhooks', async () => {

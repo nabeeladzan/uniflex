@@ -17,6 +17,7 @@ export class UniflexClient {
   public apiKey?: string;
   public token?: string;
   public adminKey?: string;
+  public mediaEndpoint?: string;
 
   constructor(options: UniflexClientOptions) {
     this.endpoint = options.endpoint.replace(/\/$/, '');
@@ -24,6 +25,7 @@ export class UniflexClient {
     this.apiKey = options.apiKey;
     this.token = options.token;
     this.adminKey = options.adminKey;
+    this.mediaEndpoint = options.mediaEndpoint;
   }
 
   public setToken(token?: string) {
@@ -195,7 +197,9 @@ export class UniflexClient {
           ws.onopen = null;
           ws.onmessage = null;
           ws.onclose = null;
-          ws.close();
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
         }
       };
     },
@@ -267,6 +271,8 @@ export class UniflexClient {
 
     getUrl: (id: string, transforms?: ImageTransformOptions): string => {
       const q = new URLSearchParams();
+      if (this.appId) q.set('appId', this.appId);
+      if (this.apiKey) q.set('apiKey', this.apiKey);
       if (transforms?.width) q.set('w', String(transforms.width));
       if (transforms?.height) q.set('h', String(transforms.height));
       if (transforms?.fit) q.set('fit', transforms.fit);
