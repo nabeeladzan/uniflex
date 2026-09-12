@@ -162,11 +162,34 @@ export function useCollection<T = Record<string, unknown>>(
   return { data, loading, error, refetch: fetchCollection };
 }
 
+type AuthListener = (user: { id: string; email: string; role: string; appId: string } | null) => void;
+const authListeners = new Set<AuthListener>();
+
+function notifyAuthChange(user: { id: string; email: string; role: string; appId: string } | null) {
+  authListeners.forEach((listener) => {
+    try {
+      listener(user);
+    } catch {}
+  });
+}
+
 export function useAuth(clientOverride?: UniflexClient) {
   const contextClient = useContext(UniflexContext);
   const client = clientOverride || contextClient;
   const [user, setUser] = useState<{ id: string; email: string; role: string; appId: string } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Subscribe to module-level auth state updates across all hook instances
+  useEffect(() => {
+    const listener: AuthListener = (newUser) => {
+      setUser(newUser);
+      setLoading(false);
+    };
+    authListeners.add(listener);
+    return () => {
+      authListeners.delete(listener);
+    };
+  }, []);
 
   const fetchMe = useCallback(async () => {
     if (!client || !client.token) {
@@ -177,8 +200,10 @@ export function useAuth(clientOverride?: UniflexClient) {
     try {
       const me = await client.auth.me();
       setUser(me.user);
+      notifyAuthChange(me.user);
     } catch {
       setUser(null);
+      notifyAuthChange(null);
     } finally {
       setLoading(false);
     }
@@ -203,6 +228,7 @@ export function useAuth(clientOverride?: UniflexClient) {
       }
     }
     setUser(res.user);
+    notifyAuthChange(res.user);
     return res;
   };
 
@@ -216,6 +242,7 @@ export function useAuth(clientOverride?: UniflexClient) {
       }
     }
     setUser(res.user);
+    notifyAuthChange(res.user);
     return res;
   };
 
@@ -226,6 +253,7 @@ export function useAuth(clientOverride?: UniflexClient) {
       localStorage.removeItem("uniflex_token");
     }
     setUser(null);
+    notifyAuthChange(null);
   };
 
   return {
