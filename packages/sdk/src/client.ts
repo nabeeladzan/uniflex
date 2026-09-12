@@ -144,7 +144,11 @@ export class UniflexClient {
     },
 
     subscribe: (collection: string, callback: (event: RealtimeEvent) => void): (() => void) => {
-      const wsUrl = `${this.endpoint.replace(/^http/, 'ws')}/v1/realtime?appId=${encodeURIComponent(this.appId)}`;
+      const q = new URLSearchParams({ appId: this.appId });
+      if (this.token) q.set('token', this.token);
+      if (this.apiKey) q.set('apiKey', this.apiKey);
+      if (this.adminKey) q.set('adminKey', this.adminKey);
+      const wsUrl = `${this.endpoint.replace(/^http/, 'ws')}/v1/realtime?${q}`;
       let ws: WebSocket | null = null;
       let isClosed = false;
       let attemptCount = 0;
@@ -163,6 +167,9 @@ export class UniflexClient {
           ws = new WebSocket(wsUrl);
           ws.onopen = () => {
             attemptCount = 0;
+            if (this.token) {
+              ws?.send(JSON.stringify({ type: 'auth', token: this.token }));
+            }
             ws?.send(JSON.stringify({ type: 'subscribe', collection }));
           };
           ws.onmessage = (evt) => {

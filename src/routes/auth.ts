@@ -10,7 +10,7 @@ import { signToken, verifyToken } from '../lib/authn';
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(['user', 'admin']).optional().default('user'),
+  role: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -38,7 +38,9 @@ export function registerAuthRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, msg);
     }
 
-    const { email, password, role } = parsed.data;
+    const { email, password } = parsed.data;
+    // Security: Public signups are strictly forced to role 'user'. Role changes must use admin endpoints.
+    const role = 'user';
 
     const existing = db
       .prepare('SELECT id FROM users WHERE app_id = ? AND email = ?')

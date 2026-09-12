@@ -1,4 +1,5 @@
 import type { Database } from 'bun:sqlite';
+import crypto from 'node:crypto';
 
 export type UniflexEventType = 'user.signup' | 'data.create' | 'data.update' | 'data.delete' | 'storage.upload';
 
@@ -35,6 +36,14 @@ export function createEventBus(db: Database): EventBus {
         // Fire-and-forget delivery with retries
         const payload = JSON.stringify(evt);
         const delays = [1000, 5000, 25000];
+
+        // Sign payload with tenant's API key
+        let signature = '';
+        try {
+          const appRow = db.prepare('SELECT api_key FROM apps WHERE id = ?').get(evt.appId) as { api_key: string } | undefined;
+          const secretKey = appRow?.api_key || 'uniflex';
+          signature = crypto.createHmac('sha256', secretKey).update(payload).digest('hex');
+        } catch {}
         
         async function attemptDelivery(attempt: number) {
           try {
@@ -43,6 +52,8 @@ export function createEventBus(db: Database): EventBus {
               headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': 'Uniflex-Webhook/0.1.0',
+                'X-Uniflex-Event': evt.event,
+                'X-Uniflex-Signature': `sha256=${signature}`,
               },
               body: payload,
               signal: AbortSignal.timeout(10000),

@@ -5,6 +5,7 @@ export interface UniflexConfig {
     secret: string;
     adminKey: string;
     udpPort?: number;
+    allowLocalWebhooks?: boolean;
   };
   storage: {
     dir: string;
@@ -34,6 +35,9 @@ export async function loadConfig(path = 'uniflex.config.json'): Promise<UniflexC
       secret: String(process.env.UNIFLEX_SECRET ?? serverObj.secret ?? ''),
       adminKey: String(process.env.UNIFLEX_ADMIN_KEY ?? serverObj.adminKey ?? ''),
       udpPort: serverObj.udpPort !== undefined ? Number(serverObj.udpPort) : Number(process.env.UNIFLEX_UDP_PORT ?? 40000),
+      allowLocalWebhooks: Boolean(
+        serverObj.allowLocalWebhooks ?? (process.env.UNIFLEX_ALLOW_LOCAL_WEBHOOKS === 'true' || process.env.NODE_ENV === 'test')
+      ),
     },
     storage: {
       dir: String(process.env.UNIFLEX_STORAGE_DIR ?? storageObj.dir ?? './data/storage'),

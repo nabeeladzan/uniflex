@@ -36,7 +36,8 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     }
 
     const fileId = `file_${crypto.randomUUID().replace(/-/g, '')}`;
-    const filename = file.name || 'unnamed_file';
+    const rawFilename = file.name || 'unnamed_file';
+    const sanitizedFilename = path.basename(rawFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
     const mimeType = file.type || 'application/octet-stream';
     const size = file.size;
 
@@ -45,18 +46,18 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
       fs.mkdirSync(storageDir, { recursive: true });
     }
 
-    const ext = path.extname(filename);
+    const ext = path.extname(sanitizedFilename).slice(0, 16);
     const diskFilename = `${fileId}${ext}`;
     const diskPath = path.join(storageDir, diskFilename);
 
-    const buffer = await file.arrayBuffer();
-    fs.writeFileSync(diskPath, Buffer.from(buffer));
+    // Asynchronous non-blocking file write
+    await Bun.write(diskPath, file);
 
     const createdAt = new Date().toISOString();
     db.prepare('INSERT INTO files (id, app_id, filename, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       fileId,
       appId,
-      filename,
+      sanitizedFilename,
       mimeType,
       size,
       createdAt
@@ -64,7 +65,7 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
 
     const fileObj = {
       id: fileId,
-      filename,
+      filename: sanitizedFilename,
       mimeType,
       size,
       url: `/v1/storage/raw/${fileId}`,
@@ -100,7 +101,8 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     const ext = path.extname(row.filename);
     const filePath = path.join(storageDir, `${row.id}${ext}`);
 
-    if (!fs.existsSync(filePath)) {
+    const fileRef = Bun.file(filePath);
+    if (!(await fileRef.exists())) {
       return err(c, 404, 'File payload not found on disk');
     }
 
@@ -144,16 +146,19 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
         try { fs.mkdirSync(cacheDir, { recursive: true }); } catch {}
       }
 
-      if (fs.existsSync(cachePath)) {
-        return c.newResponse(fs.readFileSync(cachePath), 200, {
-          'Content-Type': `image/${outFormat}`,
-          'Cache-Control': 'public, max-age=31536000, immutable',
+      const cachedFile = Bun.file(cachePath);
+      if (await cachedFile.exists()) {
+        return new Response(cachedFile, {
+          status: 200,
+          headers: {
+            'Content-Type': `image/${outFormat}`,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+          },
         });
       }
 
       try {
-        const fileBuffer = fs.readFileSync(filePath);
-        // Exception: dynamic import for native sharp addon
+        const fileBuffer = Buffer.from(await fileRef.arrayBuffer());
         const sharp = (await import('sharp')).default;
         let pipeline = sharp(fileBuffer);
 
@@ -167,25 +172,33 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
         else if (outFormat === 'avif') pipeline = pipeline.avif();
 
         const transformedBuffer = await pipeline.toBuffer();
-        try { fs.writeFileSync(cachePath, transformedBuffer); } catch {}
+        await Bun.write(cachePath, transformedBuffer).catch(() => {});
 
-        return c.newResponse(new Uint8Array(transformedBuffer), 200, {
-          'Content-Type': `image/${outFormat}`,
-          'Cache-Control': 'public, max-age=31536000, immutable',
+        return new Response(new Uint8Array(transformedBuffer), {
+          status: 200,
+          headers: {
+            'Content-Type': `image/${outFormat}`,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+          },
         });
       } catch (err) {
-        return c.newResponse(fs.readFileSync(filePath), 200, {
-          'Content-Type': row.mime_type,
-          'Content-Disposition': `inline; filename="${row.filename}"`,
+        return new Response(fileRef, {
+          status: 200,
+          headers: {
+            'Content-Type': row.mime_type,
+            'Content-Disposition': `inline; filename="${encodeURIComponent(row.filename)}"`,
+          },
         });
       }
     }
 
-    const fileStream = fs.readFileSync(filePath);
-    return c.newResponse(fileStream, 200, {
-      'Content-Type': row.mime_type,
-      'Content-Disposition': `inline; filename="${row.filename}"`,
-      'Cache-Control': 'public, max-age=31536000, immutable',
+    return new Response(fileRef, {
+      status: 200,
+      headers: {
+        'Content-Type': row.mime_type,
+        'Content-Disposition': `inline; filename="${encodeURIComponent(row.filename)}"`,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
     });
   });
 
@@ -269,6 +282,21 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     if (fs.existsSync(diskPath)) {
       try {
         fs.unlinkSync(diskPath);
+      } catch {}
+    }
+
+    // Clean up cached transformed images matching ${row.id}_*
+    const cacheDir = path.join(storageDir, '.cache');
+    if (fs.existsSync(cacheDir)) {
+      try {
+        const cacheEntries = fs.readdirSync(cacheDir);
+        for (const entry of cacheEntries) {
+          if (entry.startsWith(`${row.id}_`)) {
+            try {
+              fs.unlinkSync(path.join(cacheDir, entry));
+            } catch {}
+          }
+        }
       } catch {}
     }
 

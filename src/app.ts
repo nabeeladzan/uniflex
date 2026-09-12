@@ -22,7 +22,7 @@ export function createApp(config: UniflexConfig, dbOverride?: Database): { app: 
   registerAdminRoutes(app, db, config, bus);
   registerAuthRoutes(app, db, config, bus);
   registerDataRoutes(app, db, config, bus);
-  registerRealtimeRoutes(app, db, bus);
+  registerRealtimeRoutes(app, db, config, bus);
   registerStorageRoutes(app, db, config, bus);
 
   return { app, db, bus };

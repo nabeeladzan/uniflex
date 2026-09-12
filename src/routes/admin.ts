@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import crypto from 'node:crypto';
 import type { Database } from 'bun:sqlite';
 import type { UniflexConfig } from '../config';
 import type { EventBus } from '../lib/events';
@@ -7,11 +8,60 @@ import { appContext } from '../lib/tenant';
 
 const APP_ID_RE = /^[a-z0-9_-]{1,64}$/;
 
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function isBlockedWebhookUrl(urlStr: string, allowLocal?: boolean): boolean {
+  try {
+    const isLocalAllowed = allowLocal ?? (process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test');
+    const parsed = new URL(urlStr);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Always block cloud metadata endpoints
+    if (
+      hostname === '169.254.169.254' ||
+      hostname === 'metadata.google.internal' ||
+      hostname === 'fd00:ec2::254'
+    ) {
+      return true;
+    }
+
+    if (!isLocalAllowed) {
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        hostname === '[::1]' ||
+        hostname === '0.0.0.0'
+      ) {
+        return true;
+      }
+      const match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+      if (match) {
+        const a = Number(match[1]);
+        const b = Number(match[2]);
+        if (a === 127 || a === 0) return true;
+        if (a === 10) return true;
+        if (a === 172 && b >= 16 && b <= 31) return true;
+        if (a === 192 && b === 168) return true;
+        if (a === 169 && b === 254) return true;
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConfig, _bus: EventBus) {
   // All admin routes require admin authorization
   app.use('/v1/admin/*', async (c, next) => {
     const provided = c.req.header('X-Uniflex-Admin-Key');
-    if (config.server.adminKey && provided === config.server.adminKey) {
+    if (config.server.adminKey && provided && safeCompare(provided, config.server.adminKey)) {
       await next();
       return;
     }
@@ -190,6 +240,9 @@ export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConf
       const parsedUrl = new URL(body.url);
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
         return err(c, 400, 'Webhook URL must use http or https protocol');
+      }
+      if (isBlockedWebhookUrl(body.url.trim(), config.server.allowLocalWebhooks)) {
+        return err(c, 400, 'Webhook URL is blocked for security (SSRF protection)');
       }
     } catch {
       return err(c, 400, 'Invalid webhook URL format');

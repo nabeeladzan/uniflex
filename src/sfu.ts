@@ -21,9 +21,29 @@ function computeRms(buffer: Buffer): number {
   return Math.sqrt(sum / count);
 }
 
-export function createUdpAudioServer(port: number, onActivityChange?: (peerKey: string, isSpeaking: boolean) => void) {
+export function createUdpAudioServer(
+  port: number,
+  onActivityChange?: (peerKey: string, isSpeaking: boolean) => void
+) {
   const socket = dgram.createSocket('udp4');
   const activePeers = new Map<string, UdpPeer>();
+
+  // Background timer to prune stale peers and prevent unbounded map growth (memory leak fix)
+  const pruneInterval = setInterval(() => {
+    const cutoff = Date.now() - 30000;
+    for (const [peerKey, peer] of activePeers.entries()) {
+      if (peer.lastSeen < cutoff) {
+        if (peer.isSpeaking) {
+          onActivityChange?.(peerKey, false);
+        }
+        activePeers.delete(peerKey);
+      }
+    }
+  }, 15000);
+
+  if (pruneInterval && typeof pruneInterval.unref === 'function') {
+    pruneInterval.unref();
+  }
 
   socket.on('message', (msg, rinfo) => {
     const key = `${rinfo.address}:${rinfo.port}`;
@@ -70,6 +90,11 @@ export function createUdpAudioServer(port: number, onActivityChange?: (peerKey: 
 
   socket.on('error', (err) => {
     console.error('[Uniflex SFU] UDP Server error:', err.message);
+  });
+
+  socket.on('close', () => {
+    clearInterval(pruneInterval);
+    activePeers.clear();
   });
 
   socket.on('listening', () => {
