@@ -1,22 +1,43 @@
 import { Hono } from 'hono';
 import type { Database } from 'bun:sqlite';
-import { z } from 'zod';
 import type { UniflexConfig } from '../config';
 import type { EventBus } from '../lib/events';
 import { err } from '../lib/errors';
 import { appContext } from '../lib/tenant';
 import { signToken, verifyToken } from '../lib/authn';
 
-const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  role: z.string().optional(),
-});
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
+function parseSignupBody(body: unknown): { ok: true; email: string; password: string } | { ok: false; message: string } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, message: 'Invalid request body' };
+  }
+  const rec = body as Record<string, unknown>;
+  if (typeof rec.email !== 'string' || !EMAIL_RE.test(rec.email)) {
+    return { ok: false, message: 'Invalid email' };
+  }
+  if (typeof rec.password !== 'string' || rec.password.length < 6) {
+    return { ok: false, message: 'String must contain at least 6 character(s)' };
+  }
+  if (rec.role !== undefined && typeof rec.role !== 'string') {
+    return { ok: false, message: 'Invalid role' };
+  }
+  return { ok: true, email: rec.email, password: rec.password };
+}
+
+function parseLoginBody(body: unknown): { ok: true; email: string; password: string } | { ok: false; message: string } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, message: 'Invalid request body' };
+  }
+  const rec = body as Record<string, unknown>;
+  if (typeof rec.email !== 'string' || !EMAIL_RE.test(rec.email)) {
+    return { ok: false, message: 'Invalid email' };
+  }
+  if (typeof rec.password !== 'string' || rec.password.length < 1) {
+    return { ok: false, message: 'Password is required' };
+  }
+  return { ok: true, email: rec.email, password: rec.password };
+}
 
 export function registerAuthRoutes(app: Hono, db: Database, config: UniflexConfig, bus: EventBus) {
   app.use('/v1/auth/*', appContext(db));
@@ -32,19 +53,19 @@ export function registerAuthRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid JSON body');
     }
 
-    const parsed = signupSchema.safeParse(body);
-    if (!parsed.success) {
-      const msg = parsed.error.issues[0]?.message ?? 'Invalid request body';
-      return err(c, 400, msg);
+    const parsed = parseSignupBody(body);
+    if (!parsed.ok) {
+      return err(c, 400, parsed.message);
     }
 
-    const { email, password } = parsed.data;
+    const { email, password } = parsed;
     // Security: Public signups are strictly forced to role 'user'. Role changes must use admin endpoints.
     const role = 'user';
+    const normalizedEmail = email.toLowerCase();
 
     const existing = db
-      .prepare('SELECT id FROM users WHERE app_id = ? AND email = ?')
-      .get(appId, email.toLowerCase());
+      .query('SELECT id FROM users WHERE app_id = ? AND email = ?')
+      .get(appId, normalizedEmail);
 
     if (existing) {
       return err(c, 409, 'User with this email already exists in application');
@@ -54,20 +75,20 @@ export function registerAuthRoutes(app: Hono, db: Database, config: UniflexConfi
     const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 10 });
     const createdAt = new Date().toISOString();
 
-    db.prepare(
+    db.query(
       'INSERT INTO users (id, app_id, email, password_hash, role, banned, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)'
-    ).run(userId, appId, email.toLowerCase(), passwordHash, role, createdAt);
+    ).run(userId, appId, normalizedEmail, passwordHash, role, createdAt);
 
     const token = await signToken(config.server.secret, {
       sub: userId,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       appId,
       role,
     });
 
     const userObj = {
       id: userId,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       role,
       appId,
     };
@@ -99,19 +120,18 @@ export function registerAuthRoutes(app: Hono, db: Database, config: UniflexConfi
       return err(c, 400, 'Invalid JSON body');
     }
 
-    const parsed = loginSchema.safeParse(body);
-    if (!parsed.success) {
-      const msg = parsed.error.issues[0]?.message ?? 'Invalid request body';
-      return err(c, 400, msg);
+    const parsed = parseLoginBody(body);
+    if (!parsed.ok) {
+      return err(c, 400, parsed.message);
     }
 
-    const { email, password } = parsed.data;
+    const { email, password } = parsed;
 
     const userRow = db
-      .prepare('SELECT id, email, password_hash, role, banned FROM users WHERE app_id = ? AND email = ?')
+      .query('SELECT id, email, password_hash, role, banned FROM users WHERE app_id = ? AND email = ?')
       .get(appId, email.toLowerCase()) as
       | { id: string; email: string; password_hash: string; role: string; banned: number }
-      | undefined;
+      | null;
 
     if (!userRow) {
       return err(c, 401, 'Invalid credentials');
@@ -165,8 +185,8 @@ export function registerAuthRoutes(app: Hono, db: Database, config: UniflexConfi
     }
 
     const userRow = db
-      .prepare('SELECT id, email, role, banned FROM users WHERE app_id = ? AND id = ?')
-      .get(appId, payload.sub) as { id: string; email: string; role: string; banned: number } | undefined;
+      .query('SELECT id, email, role, banned FROM users WHERE app_id = ? AND id = ?')
+      .get(appId, payload.sub) as { id: string; email: string; role: string; banned: number } | null;
 
     if (!userRow) {
       return err(c, 401, 'User no longer exists');

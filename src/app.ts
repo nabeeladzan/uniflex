@@ -13,7 +13,7 @@ import { registerStorageRoutes } from './routes/storage';
 
 export function createApp(config: UniflexConfig, dbOverride?: Database): { app: Hono; db: Database; bus: EventBus } {
   const app = new Hono();
-  const db = initDb(dbOverride ?? config.database.path);
+  const db = initDb(dbOverride ?? config.database.path, { fts: config.database.fts });
   const bus = createEventBus(db);
 
   app.use('*', cors());

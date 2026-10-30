@@ -28,13 +28,13 @@ export function createUdpAudioServer(
   const socket = dgram.createSocket('udp4');
   const activePeers = new Map<string, UdpPeer>();
 
-  // Background timer to prune stale peers and prevent unbounded map growth (memory leak fix)
+  // Background timer to prune stale peers and prevent unbounded map growth
   const pruneInterval = setInterval(() => {
     const cutoff = Date.now() - 30000;
     for (const [peerKey, peer] of activePeers.entries()) {
       if (peer.lastSeen < cutoff) {
-        if (peer.isSpeaking) {
-          onActivityChange?.(peerKey, false);
+        if (peer.isSpeaking && onActivityChange) {
+          onActivityChange(peerKey, false);
         }
         activePeers.delete(peerKey);
       }
@@ -65,19 +65,19 @@ export function createUdpAudioServer(
       peer.lastSeen = now;
     }
 
-    // Measure audio energy (SFU Voice Activity Detection)
-    const energy = computeRms(msg);
-    const speakingNow = energy > 250;
-
-    if (speakingNow) {
-      peer.lastSpeaking = now;
-      if (!peer.isSpeaking) {
-        peer.isSpeaking = true;
-        onActivityChange?.(key, true);
+    // Only pay per-packet PCM RMS cost when a VAD consumer callback is registered
+    if (onActivityChange) {
+      const energy = computeRms(msg);
+      if (energy > 250) {
+        peer.lastSpeaking = now;
+        if (!peer.isSpeaking) {
+          peer.isSpeaking = true;
+          onActivityChange(key, true);
+        }
+      } else if (peer.isSpeaking && now - peer.lastSpeaking > 400) {
+        peer.isSpeaking = false;
+        onActivityChange(key, false);
       }
-    } else if (peer.isSpeaking && now - peer.lastSpeaking > 400) {
-      peer.isSpeaking = false;
-      onActivityChange?.(key, false);
     }
 
     // Forward UDP audio payload to all other active peers in the room
@@ -99,7 +99,7 @@ export function createUdpAudioServer(
 
   socket.on('listening', () => {
     const addr = socket.address();
-    console.log(`[Uniflex SFU] UDP Media Router with VAD listening on ${addr.address}:${addr.port}`);
+    console.log(`[Uniflex SFU] UDP Media Router listening on ${addr.address}:${addr.port}`);
   });
 
   socket.bind(port, '0.0.0.0');

@@ -2,7 +2,13 @@ import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 
-export function initDb(pathOrDb: string | Database): Database {
+const SAFE_COLLECTION_RE = /^[a-z0-9_-]{1,64}$/;
+
+export interface DbInitOptions {
+  fts?: boolean | string[];
+}
+
+export function initDb(pathOrDb: string | Database, options?: DbInitOptions): Database {
   let db: Database;
   if (typeof pathOrDb === 'string') {
     if (pathOrDb !== ':memory:') {
@@ -56,20 +62,6 @@ export function initDb(pathOrDb: string | Database): Database {
       data
     );
 
-    CREATE TRIGGER IF NOT EXISTS trg_documents_ai AFTER INSERT ON documents BEGIN
-      INSERT INTO documents_fts (id, app_id, collection, data)
-      VALUES (new.id, new.app_id, new.collection, new.data);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS trg_documents_ad AFTER DELETE ON documents BEGIN
-      DELETE FROM documents_fts WHERE id = old.id AND app_id = old.app_id AND collection = old.collection;
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS trg_documents_au AFTER UPDATE ON documents BEGIN
-      UPDATE documents_fts SET data = new.data
-      WHERE id = new.id AND app_id = new.app_id AND collection = new.collection;
-    END;
-
     CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,
       app_id TEXT NOT NULL REFERENCES apps(id),
@@ -92,6 +84,70 @@ export function initDb(pathOrDb: string | Database): Database {
       created_at TEXT NOT NULL
     );
   `);
+
+  const ftsOpt = options?.fts ?? true;
+
+  if (ftsOpt === false || (Array.isArray(ftsOpt) && ftsOpt.length === 0)) {
+    db.exec(`
+      DROP TRIGGER IF EXISTS trg_documents_ai;
+      DROP TRIGGER IF EXISTS trg_documents_ad;
+      DROP TRIGGER IF EXISTS trg_documents_au;
+      DELETE FROM documents_fts;
+    `);
+  } else if (Array.isArray(ftsOpt)) {
+    const allowed = ftsOpt.filter((c) => SAFE_COLLECTION_RE.test(c));
+    if (allowed.length === 0) {
+      db.exec(`
+        DROP TRIGGER IF EXISTS trg_documents_ai;
+        DROP TRIGGER IF EXISTS trg_documents_ad;
+        DROP TRIGGER IF EXISTS trg_documents_au;
+        DELETE FROM documents_fts;
+      `);
+    } else {
+      const sqlList = allowed.map((c) => `'${c}'`).join(', ');
+      db.exec(`
+        DROP TRIGGER IF EXISTS trg_documents_ai;
+        DROP TRIGGER IF EXISTS trg_documents_ad;
+        DROP TRIGGER IF EXISTS trg_documents_au;
+
+        CREATE TRIGGER trg_documents_ai AFTER INSERT ON documents
+        WHEN new.collection IN (${sqlList}) BEGIN
+          INSERT INTO documents_fts (id, app_id, collection, data)
+          VALUES (new.id, new.app_id, new.collection, new.data);
+        END;
+
+        CREATE TRIGGER trg_documents_ad AFTER DELETE ON documents
+        WHEN old.collection IN (${sqlList}) BEGIN
+          DELETE FROM documents_fts WHERE id = old.id AND app_id = old.app_id AND collection = old.collection;
+        END;
+
+        CREATE TRIGGER trg_documents_au AFTER UPDATE ON documents
+        WHEN new.collection IN (${sqlList}) BEGIN
+          DELETE FROM documents_fts WHERE id = old.id AND app_id = old.app_id AND collection = old.collection;
+          INSERT INTO documents_fts (id, app_id, collection, data)
+          VALUES (new.id, new.app_id, new.collection, new.data);
+        END;
+
+        DELETE FROM documents_fts WHERE collection NOT IN (${sqlList});
+      `);
+    }
+  } else {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_documents_ai AFTER INSERT ON documents BEGIN
+        INSERT INTO documents_fts (id, app_id, collection, data)
+        VALUES (new.id, new.app_id, new.collection, new.data);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_documents_ad AFTER DELETE ON documents BEGIN
+        DELETE FROM documents_fts WHERE id = old.id AND app_id = old.app_id AND collection = old.collection;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_documents_au AFTER UPDATE ON documents BEGIN
+        UPDATE documents_fts SET data = new.data
+        WHERE id = new.id AND app_id = new.app_id AND collection = new.collection;
+      END;
+    `);
+  }
 
   return db;
 }

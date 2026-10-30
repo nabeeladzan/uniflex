@@ -5,6 +5,7 @@ import type { UniflexConfig } from '../config';
 import type { EventBus } from '../lib/events';
 import { err } from '../lib/errors';
 import { appContext } from '../lib/tenant';
+import { getTenantCache } from '../lib/cache';
 
 const APP_ID_RE = /^[a-z0-9_-]{1,64}$/;
 
@@ -58,6 +59,8 @@ function isBlockedWebhookUrl(urlStr: string, allowLocal?: boolean): boolean {
 }
 
 export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConfig, _bus: EventBus) {
+  const cache = getTenantCache(db);
+
   // All admin routes require admin authorization
   app.use('/v1/admin/*', async (c, next) => {
     const provided = c.req.header('X-Uniflex-Admin-Key');
@@ -114,6 +117,7 @@ export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConf
       apiKey,
       createdAt
     );
+    cache.invalidateApps();
 
     return c.json(
       {
@@ -211,6 +215,7 @@ export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConf
     } else {
       db.prepare('INSERT INTO rules (app_id, rules) VALUES (?, ?)').run(appId, jsonStr);
     }
+    cache.invalidateRules();
 
     return c.json({
       message: 'Rules updated successfully',
@@ -269,6 +274,7 @@ export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConf
       eventsStr,
       createdAt
     );
+    cache.invalidateWebhooks();
 
     return c.json(
       {
@@ -317,6 +323,7 @@ export function registerAdminRoutes(app: Hono, db: Database, config: UniflexConf
     }
 
     db.prepare('DELETE FROM webhooks WHERE id = ?').run(id);
+    cache.invalidateWebhooks();
 
     return c.json({
       message: 'Webhook deleted successfully',

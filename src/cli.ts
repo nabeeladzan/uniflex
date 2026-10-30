@@ -1,6 +1,4 @@
-import { websocket } from 'hono/bun';
-import { loadConfig } from './config';
-import { createApp } from './app';
+import { startServer } from './serve';
 
 const pkg = { name: 'uniflex', version: '0.1.0' };
 const subcommand = process.argv[2];
@@ -37,26 +35,11 @@ Examples:
 }
 
 if (subcommand === 'tui') {
-  // Exception: dynamic import keeps server mode fast and lets bundler split cleanly
   const { runTui } = await import('./tui/render');
   await runTui();
 } else if (subcommand === 'serve' || !subcommand || !subcommand.startsWith('-')) {
   try {
-    const config = await loadConfig();
-    const { app } = createApp(config);
-
-    if (config.server.udpPort) {
-      const { createUdpAudioServer } = await import('./sfu');
-      createUdpAudioServer(config.server.udpPort);
-    }
-
-    Bun.serve({
-      port: config.server.port,
-      hostname: config.server.host,
-      fetch: app.fetch,
-      websocket,
-    });
-    console.log(`Uniflex server listening on http://${config.server.host}:${config.server.port}`);
+    await startServer();
   } catch (err) {
     console.error('Failed to start Uniflex server:', err instanceof Error ? err.message : String(err));
     process.exit(1);

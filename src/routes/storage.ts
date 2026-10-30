@@ -50,11 +50,10 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     const diskFilename = `${fileId}${ext}`;
     const diskPath = path.join(storageDir, diskFilename);
 
-    // Asynchronous non-blocking file write
     await Bun.write(diskPath, file);
 
     const createdAt = new Date().toISOString();
-    db.prepare('INSERT INTO files (id, app_id, filename, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    db.query('INSERT INTO files (id, app_id, filename, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       fileId,
       appId,
       sanitizedFilename,
@@ -87,11 +86,11 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     const appId = c.get('appId');
     const id = c.req.param('id');
 
-    const row = db.prepare('SELECT id, mime_type, filename FROM files WHERE app_id = ? AND id = ?').get(appId, id) as {
+    const row = db.query('SELECT id, mime_type, filename FROM files WHERE app_id = ? AND id = ?').get(appId, id) as {
       id: string;
       mime_type: string;
       filename: string;
-    } | undefined;
+    } | null;
 
     if (!row) {
       return err(c, 404, 'File not found');
@@ -119,7 +118,7 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     }
 
     const isImage = row.mime_type.startsWith('image/');
-    const needsTransform = isImage && (width || height || format);
+    const needsTransform = config.storage.imageTransforms !== false && isImage && (width || height || format);
 
     if (needsTransform) {
       const validFormats = ['jpeg', 'jpg', 'png', 'webp', 'avif'];
@@ -159,7 +158,9 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
 
       try {
         const fileBuffer = Buffer.from(await fileRef.arrayBuffer());
-        const sharp = (await import('sharp')).default;
+        // Indirect module specifier avoids forcefully bundling native sharp into headless compiled server binaries
+        const sharpPkg = 'sharp';
+        const sharp = (await import(sharpPkg)).default;
         let pipeline = sharp(fileBuffer);
 
         if (width || height) {
@@ -181,7 +182,7 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
             'Cache-Control': 'public, max-age=31536000, immutable',
           },
         });
-      } catch (err) {
+      } catch {
         return new Response(fileRef, {
           status: 200,
           headers: {
@@ -214,11 +215,11 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
       const limit = Math.min(Math.max(parseInt(limitParam || '50', 10) || 50, 1), 500);
       const offset = Math.max(parseInt(offsetParam || '0', 10) || 0, 0);
       rows = db
-        .prepare('SELECT id, filename, mime_type, size, created_at FROM files WHERE app_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?')
+        .query('SELECT id, filename, mime_type, size, created_at FROM files WHERE app_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?')
         .all(appId, limit, offset) as typeof rows;
     } else {
       rows = db
-        .prepare('SELECT id, filename, mime_type, size, created_at FROM files WHERE app_id = ? ORDER BY created_at ASC')
+        .query('SELECT id, filename, mime_type, size, created_at FROM files WHERE app_id = ? ORDER BY created_at ASC')
         .all(appId) as typeof rows;
     }
 
@@ -239,13 +240,13 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     const appId = c.get('appId');
     const id = c.req.param('id');
 
-    const row = db.prepare('SELECT id, filename, mime_type, size, created_at FROM files WHERE app_id = ? AND id = ?').get(appId, id) as {
+    const row = db.query('SELECT id, filename, mime_type, size, created_at FROM files WHERE app_id = ? AND id = ?').get(appId, id) as {
       id: string;
       filename: string;
       mime_type: string;
       size: number;
       created_at: string;
-    } | undefined;
+    } | null;
 
     if (!row) {
       return err(c, 404, 'File not found');
@@ -266,10 +267,10 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
     const appId = c.get('appId');
     const id = c.req.param('id');
 
-    const row = db.prepare('SELECT id, filename FROM files WHERE app_id = ? AND id = ?').get(appId, id) as {
+    const row = db.query('SELECT id, filename FROM files WHERE app_id = ? AND id = ?').get(appId, id) as {
       id: string;
       filename: string;
-    } | undefined;
+    } | null;
 
     if (!row) {
       return err(c, 404, 'File not found');
@@ -285,7 +286,6 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
       } catch {}
     }
 
-    // Clean up cached transformed images matching ${row.id}_*
     const cacheDir = path.join(storageDir, '.cache');
     if (fs.existsSync(cacheDir)) {
       try {
@@ -300,7 +300,7 @@ export function registerStorageRoutes(app: Hono, db: Database, config: UniflexCo
       } catch {}
     }
 
-    db.prepare('DELETE FROM files WHERE app_id = ? AND id = ?').run(appId, id);
+    db.query('DELETE FROM files WHERE app_id = ? AND id = ?').run(appId, id);
 
     return c.json({
       message: 'File deleted successfully',

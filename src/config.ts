@@ -9,9 +9,14 @@ export interface UniflexConfig {
   };
   storage: {
     dir: string;
+    imageTransforms?: boolean;
   };
   database: {
     path: string;
+    /** true = all collections (default), false = disabled, string[] = opt-in collection allowlist */
+    fts?: boolean | string[];
+    /** Collections kept purely in bounded RAM with 60s TTL + WebSocket broadcast (zero SQLite disk writes) */
+    ephemeralCollections?: string[];
   };
 }
 
@@ -28,6 +33,17 @@ export async function loadConfig(path = 'uniflex.config.json'): Promise<UniflexC
   const storageObj = (parsed.storage && typeof parsed.storage === 'object' ? parsed.storage : {}) as Record<string, unknown>;
   const databaseObj = (parsed.database && typeof parsed.database === 'object' ? parsed.database : {}) as Record<string, unknown>;
 
+  let fts: boolean | string[] = true;
+  if (typeof databaseObj.fts === 'boolean') {
+    fts = databaseObj.fts;
+  } else if (Array.isArray(databaseObj.fts)) {
+    fts = databaseObj.fts.filter((c): c is string => typeof c === 'string' && /^[a-z0-9_-]{1,64}$/.test(c));
+  }
+
+  const ephemeralCollections = Array.isArray(databaseObj.ephemeralCollections)
+    ? databaseObj.ephemeralCollections.filter((c): c is string => typeof c === 'string' && /^[a-z0-9_-]{1,64}$/.test(c))
+    : [];
+
   const config: UniflexConfig = {
     server: {
       port: Number(process.env.PORT ?? serverObj.port ?? 8080),
@@ -41,9 +57,12 @@ export async function loadConfig(path = 'uniflex.config.json'): Promise<UniflexC
     },
     storage: {
       dir: String(process.env.UNIFLEX_STORAGE_DIR ?? storageObj.dir ?? './data/storage'),
+      imageTransforms: storageObj.imageTransforms !== undefined ? Boolean(storageObj.imageTransforms) : true,
     },
     database: {
       path: String(process.env.UNIFLEX_DB_PATH ?? databaseObj.path ?? './data/uniflex.db'),
+      fts,
+      ephemeralCollections,
     },
   };
 

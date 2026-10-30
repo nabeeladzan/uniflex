@@ -1,6 +1,7 @@
 import type { Context, Next } from 'hono';
 import type { Database } from 'bun:sqlite';
 import { err } from './errors';
+import { getTenantCache } from './cache';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -9,6 +10,8 @@ declare module 'hono' {
 }
 
 export function appContext(db: Database) {
+  const cache = getTenantCache(db);
+
   return async (c: Context, next: Next) => {
     const appIdHeader = c.req.header('X-Uniflex-App-ID') || c.req.query('appId');
     const apiKeyHeader = c.req.header('X-Uniflex-API-Key') || c.req.query('apiKey');
@@ -16,14 +19,14 @@ export function appContext(db: Database) {
     let resolvedAppId: string | null = null;
 
     if (appIdHeader) {
-      const appRow = db.prepare('SELECT id FROM apps WHERE id = ?').get(appIdHeader) as { id: string } | undefined;
-      if (appRow) {
-        resolvedAppId = appRow.id;
+      const app = cache.getAppById(appIdHeader);
+      if (app) {
+        resolvedAppId = app.id;
       }
     } else if (apiKeyHeader) {
-      const appRow = db.prepare('SELECT id FROM apps WHERE api_key = ?').get(apiKeyHeader) as { id: string } | undefined;
-      if (appRow) {
-        resolvedAppId = appRow.id;
+      const appId = cache.getAppIdByApiKey(apiKeyHeader);
+      if (appId) {
+        resolvedAppId = appId;
       }
     }
 

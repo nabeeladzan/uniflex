@@ -13,21 +13,13 @@ function findWasmDir(dir: string): string | undefined {
         return dir;
       }
     }
-  } catch {
-    // Ignore unreadable dirs
-  }
+  } catch {}
   return undefined;
 }
 
-const wasmDir = findWasmDir(path.join(process.cwd(), 'node_modules'));
-if (wasmDir) {
-  console.log(`Found WASM asset directory: ${wasmDir}`);
-} else {
-  console.log('No standalone .wasm file found; yoga uses inline base64 WASM bundle.');
-}
-
-const isLinuxRequested = process.argv.some(a => a === 'linux' || a === '--target=linux');
-const isWinRequested = process.argv.some(a => a === 'windows' || a === '--target=windows');
+const withTui = process.argv.some((a) => a === '--with-tui' || a === 'tui');
+const isLinuxRequested = process.argv.some((a) => a === 'linux' || a === '--target=linux');
+const isWinRequested = process.argv.some((a) => a === 'windows' || a === '--target=windows');
 
 let target: 'bun-linux-x64' | 'bun-windows-x64';
 let outfile: string;
@@ -44,19 +36,24 @@ if (isLinuxRequested) {
   outfile = isWin ? 'uniflex.exe' : 'uniflex';
 }
 
-console.log(`Building single-binary for ${target} -> ${outfile}...`);
+const entrypoint = withTui ? 'src/cli.ts' : 'src/serve.ts';
+console.log(`Building ${withTui ? 'full (server + TUI)' : 'lean headless server'} binary for ${target} -> ${outfile}...`);
 
 const buildConfig: Parameters<typeof Bun.build>[0] = {
-  entrypoints: ['src/cli.ts'],
+  entrypoints: [entrypoint],
   compile: {
     target,
     outfile,
   },
+  external: ['sharp'],
   minify: true,
 };
 
-if (wasmDir) {
-  buildConfig.assets = [wasmDir];
+if (withTui) {
+  const wasmDir = findWasmDir(path.join(process.cwd(), 'node_modules'));
+  if (wasmDir) {
+    (buildConfig as unknown as Record<string, unknown>).assets = [wasmDir];
+  }
 }
 
 const res = await Bun.build(buildConfig);

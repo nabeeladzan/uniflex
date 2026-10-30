@@ -32,8 +32,8 @@ export async function resolveAuthUser(
   }
   if (db && payload.sub) {
     const userRow = db
-      .prepare('SELECT banned FROM users WHERE app_id = ? AND id = ?')
-      .get(appId, payload.sub) as { banned: number } | undefined;
+      .query('SELECT banned FROM users WHERE app_id = ? AND id = ?')
+      .get(appId, payload.sub) as { banned: number } | null;
 
     if (userRow && userRow.banned === 1) {
       return {

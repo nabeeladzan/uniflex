@@ -6,6 +6,7 @@ import type { UniflexConfig } from '../config';
 import type { EventBus, UniflexEvent } from '../lib/events';
 import { verifyToken } from '../lib/authn';
 import { assertRule, type RuleUserContext } from '../lib/rules';
+import { getTenantCache } from '../lib/cache';
 import { err } from '../lib/errors';
 
 interface ClientSocket {
@@ -36,8 +37,8 @@ async function resolveSocketUser(
     if (payload && payload.appId === appId) {
       if (payload.sub) {
         const userRow = db
-          .prepare('SELECT banned FROM users WHERE app_id = ? AND id = ?')
-          .get(appId, payload.sub) as { banned: number } | undefined;
+          .query('SELECT banned FROM users WHERE app_id = ? AND id = ?')
+          .get(appId, payload.sub) as { banned: number } | null;
         if (!userRow || userRow.banned !== 1) {
           return {
             user: { id: payload.sub, email: payload.email, role: payload.role },
@@ -55,6 +56,8 @@ async function resolveSocketUser(
 }
 
 export function registerRealtimeRoutes(app: Hono, db: Database, config: UniflexConfig, bus: EventBus) {
+  const cache = getTenantCache(db);
+
   bus.onRealtime((evt: UniflexEvent) => {
     if (evt.event !== 'data.create' && evt.event !== 'data.update' && evt.event !== 'data.delete') {
       return;
@@ -93,7 +96,6 @@ export function registerRealtimeRoutes(app: Hono, db: Database, config: UniflexC
 
     for (const client of sockets) {
       if (client.topics.has(topicCol) || client.topics.has(topicDoc) || client.topics.has('*')) {
-        // Enforce security rule on broadcast
         const ctx = { user: client.user, doc: payloadData, request: null };
         if (client.isAdmin || assertRule(db, evt.appId, collection, 'read', ctx)) {
           try {
@@ -106,15 +108,14 @@ export function registerRealtimeRoutes(app: Hono, db: Database, config: UniflexC
     }
   });
 
-  // Validate appId in route middleware before upgradeWebSocket
+  // Validate appId in route middleware before upgradeWebSocket (from in-memory cache)
   app.get('/v1/realtime', async (c, next) => {
     const appId = c.req.query('appId');
     if (!appId) {
       return err(c, 400, 'Query parameter appId is required');
     }
 
-    const appRow = db.prepare('SELECT id FROM apps WHERE id = ?').get(appId);
-    if (!appRow) {
+    if (!cache.getAppById(appId)) {
       return err(c, 401, 'Invalid or missing app context');
     }
 
@@ -131,7 +132,6 @@ export function registerRealtimeRoutes(app: Hono, db: Database, config: UniflexC
 
       return {
         onOpen(_event, ws) {
-          // Initialize clientRef immediately to prevent race conditions with fast message frames
           clientRef = {
             ws,
             topics: new Set<string>(),
@@ -204,6 +204,26 @@ export function registerRealtimeRoutes(app: Hono, db: Database, config: UniflexC
               const topicKey = typeof frame.id === 'string' && frame.id ? `${frame.collection}:${frame.id}` : frame.collection;
               clientRef.topics.delete(topicKey);
             }
+          } else if (frame.type === 'broadcast') {
+            // Pure in-memory ephemeral pub/sub without touching SQLite
+            if (typeof frame.collection !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(frame.collection)) {
+              ws.send(JSON.stringify({ type: 'error', error: 'Invalid collection name' }));
+              return;
+            }
+            const payload = frame.data && typeof frame.data === 'object' ? (frame.data as Record<string, unknown>) : {};
+            const ctx = { user: clientRef.user, doc: payload, request: payload };
+            if (!clientRef.isAdmin && !assertRule(db, appId, frame.collection, 'create', ctx)) {
+              ws.send(JSON.stringify({ type: 'error', error: 'Access denied by security rules' }));
+              return;
+            }
+            const now = new Date().toISOString();
+            const id = typeof payload.id === 'string' && payload.id ? payload.id : crypto.randomUUID();
+            bus.emit({
+              event: 'data.create',
+              appId,
+              timestamp: now,
+              data: { id, collection: frame.collection, data: payload, _createdAt: now, _updatedAt: now },
+            });
           } else {
             ws.send(JSON.stringify({ type: 'error', error: 'Unknown frame type' }));
           }
